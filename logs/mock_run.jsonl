@@ -1,0 +1,27 @@
+{"event_type": "transcript_chunk", "timestamp_s": 0.0, "text": "I need to plan a customer workshop in..."}
+{"event_type": "transcript_chunk", "timestamp_s": 0.8, "text": "...Pune for 30 people, and I need..."}
+{"event_type": "transcript_chunk", "timestamp_s": 1.6, "text": "...the cancellation policy and the catering options."}
+{"event_type": "utterance_end", "timestamp_s": 2.1}
+{"event_type": "controller_decision", "timestamp_s": 2.1, "action": "decompose_and_retrieve", "reason": "utterance_end"}
+{"event_type": "decomposition_started", "timestamp_s": 2.12, "utterance": "I need to plan a customer workshop in Pune for 30 people, and I need the cancellation policy and the catering options."}
+{"event_type": "decomposition_completed", "timestamp_s": 2.18, "sub_intents": ["venue_capacity", "cancellation_policy", "catering_options"], "latency_ms": 60.0}
+{"event_type": "retrieval_started", "timestamp_s": 2.2, "query": "workshop venue Pune 30 people", "trigger": "sub_intent"}
+{"event_type": "retrieval_completed", "timestamp_s": 1790678380.5146954, "query": "workshop venue Pune 30 people", "chunk_ids": ["chunk_venue_capacity_1", "chunk_venue_capacity_2"], "latency_ms": 140.0}
+{"event_type": "claim_drafted", "timestamp_s": 2.3600000000000003, "claim_id": "claim_v1_venue_capacity", "sub_intent": "venue_capacity", "chunk_ids": ["chunk_venue_capacity_1", "chunk_venue_capacity_2"], "status": "grounded"}
+{"event_type": "retrieval_started", "timestamp_s": 2.5, "query": "cancellation policy", "trigger": "sub_intent"}
+{"event_type": "retrieval_completed", "timestamp_s": 1790678380.5146954, "query": "cancellation policy", "chunk_ids": ["chunk_cancellation_policy_1", "chunk_cancellation_policy_2"], "latency_ms": 155.0}
+{"event_type": "claim_drafted", "timestamp_s": 2.66, "claim_id": "claim_v1_cancellation_policy", "sub_intent": "cancellation_policy", "chunk_ids": ["chunk_cancellation_policy_1", "chunk_cancellation_policy_2"], "status": "grounded"}
+{"event_type": "retrieval_started", "timestamp_s": 2.8, "query": "catering options", "trigger": "sub_intent"}
+{"event_type": "retrieval_completed", "timestamp_s": 1790678380.5164504, "query": "catering options", "chunk_ids": ["chunk_catering_options_1", "chunk_catering_options_2"], "latency_ms": 170.0}
+{"event_type": "claim_drafted", "timestamp_s": 2.96, "claim_id": "claim_v1_catering_options", "sub_intent": "catering_options", "chunk_ids": ["chunk_catering_options_1", "chunk_catering_options_2"], "status": "grounded"}
+{"event_type": "answer_version", "timestamp_s": 1790678380.5164504, "version": 1, "claims_added": ["claim_v1_venue_capacity", "claim_v1_cancellation_policy", "claim_v1_catering_options"], "claims_superseded": []}
+{"event_type": "answer_rendered", "timestamp_s": 3.1499999999999995, "version": 1, "claim_ids": ["claim_v1_venue_capacity", "claim_v1_cancellation_policy", "claim_v1_catering_options"]}
+{"event_type": "transcript_chunk", "timestamp_s": 4.3, "text": "Sorry, actually make that 50 people, not 30."}
+{"event_type": "controller_decision", "timestamp_s": 4.319999999999999, "action": "reretrieve", "reason": "constraint_updated:group_size"}
+{"event_type": "retrieval_started", "timestamp_s": 4.35, "query": "workshop venue Pune 50 people", "trigger": "constraint_update"}
+{"event_type": "retrieval_completed", "timestamp_s": 1790678380.5164504, "query": "workshop venue Pune 50 people", "chunk_ids": ["chunk_venue_capacity_3", "chunk_venue_capacity_4"], "latency_ms": 132.0}
+{"event_type": "claim_drafted", "timestamp_s": 4.5, "claim_id": "claim_v2_venue_capacity", "sub_intent": "venue_capacity", "chunk_ids": ["chunk_venue_capacity_3", "chunk_venue_capacity_4"], "status": "grounded", "supersedes": "claim_v1_venue_capacity"}
+{"event_type": "answer_version", "timestamp_s": 1790678380.5164504, "version": 2, "claims_added": ["claim_v2_venue_capacity"], "claims_superseded": ["claim_v1_venue_capacity"]}
+{"event_type": "answer_rendered", "timestamp_s": 4.6, "version": 2, "claim_ids": ["claim_v2_venue_capacity", "claim_v1_cancellation_policy", "claim_v1_catering_options"]}
+{"event_type": "transcript_chunk", "timestamp_s": 5.3, "text": "Oh, and do you have parking nearby?"}
+{"event_type": "suppressed", "timestamp_s": 1790678380.5164504, "reason": "low_confidence_retrieval"}

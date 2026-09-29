@@ -97,3 +97,8 @@ class TelemetryLogger:
                     continue
                 events.append(json.loads(line))
         return events
+
+
+def read_events(path: str | Path) -> list[dict[str, Any]]:
+    """Module-level convenience wrapper around TelemetryLogger.read_events."""
+    return TelemetryLogger.read_events(path)
