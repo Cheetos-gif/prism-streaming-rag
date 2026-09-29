@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Streaming Live RAG — Session Timeline</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121922; --panel-2:#0f151c; --border:#232c37;
+    --text:#e6edf3; --muted:#8b98a5; --blue:#4da3ff; --amber:#f0a93a;
+    --green:#35d68a; --red:#ff5d5d; --gray:#5b6672;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:0 0 10px;font-weight:600;}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+
+  header.topbar{
+    position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;
+    padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .title{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;white-space:nowrap;}
+  .title .dot{width:9px;height:9px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 3px rgba(53,214,138,.18);flex:none;}
+  .version-badge{
+    font-family:ui-monospace,monospace;font-weight:700;font-size:12px;padding:4px 10px;
+    border-radius:999px;background:rgba(77,163,255,.12);border:1px solid rgba(77,163,255,.4);
+    color:var(--blue);white-space:nowrap;transition:transform .15s ease, background .3s ease;
+  }
+  .version-badge.bump{transform:scale(1.18);background:rgba(53,214,138,.22);
+    border-color:var(--green);color:var(--green);}
+  .controls{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;}
+  button, select{
+    background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+    border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;
+  }
+  button:hover:not(:disabled){border-color:var(--blue);color:var(--blue);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .status-bar{padding:6px 16px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);}
+  .status-bar.warn{color:var(--amber);}
+  .status-bar.ok{color:var(--green);}
+
+  main{padding:18px 16px 60px;max-width:1200px;margin:0 auto;}
+  section.track{margin-bottom:22px;}
+  .track-scroll{
+    display:flex;align-items:stretch;gap:10px;overflow-x:auto;padding:4px 2px 10px;
+    scrollbar-width:thin;
+  }
+  .track-scroll:empty::after{content:"— waiting for events —";color:var(--gray);font-size:12px;padding:8px 0;}
+
+  .chunk-bubble{
+    flex:none;max-width:260px;background:var(--panel);border:1px solid var(--border);
+    border-radius:12px 12px 12px 2px;padding:8px 12px;font-size:13px;
+    animation:pop .25s ease;
+  }
+  .chunk-bubble.end{border-style:dashed;color:var(--muted);font-style:italic;}
+  .chunk-bubble.correction{border-color:var(--amber);box-shadow:0 0 0 1px rgba(240,169,58,.35);}
+  .chunk-bubble .ts{display:block;font-size:10px;color:var(--muted);margin-top:4px;font-family:monospace;}
+
+  .decision-pill{
+    flex:none;align-self:center;display:flex;flex-direction:column;gap:2px;
+    background:rgba(77,163,255,.1);border:1px solid rgba(77,163,255,.4);color:var(--blue);
+    border-radius:8px;padding:6px 10px;font-size:11px;white-space:nowrap;animation:pop .25s ease;
+  }
+  .decision-pill.reretrieve{background:rgba(240,169,58,.12);border-color:rgba(240,169,58,.5);color:var(--amber);}
+  .decision-pill b{font-size:11px;}
+  .decision-pill span{color:var(--muted);font-size:10px;}
+
+  .fanout-note{flex:none;align-self:center;font-size:11px;color:var(--muted);padding:6px 4px;}
+
+  .retrieval-card{
+    flex:none;width:210px;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:10px 12px;animation:pop .25s ease;position:relative;
+  }
+  .retrieval-card.refinement{border-color:var(--amber);}
+  .retrieval-card.refinement::before{
+    content:"REFINEMENT";position:absolute;top:-9px;right:8px;background:var(--amber);
+    color:#1a1204;font-size:9px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;
+  }
+  .retrieval-query{font-size:12.5px;margin-bottom:8px;}
+  .retrieval-state{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .retrieval-card.pending .retrieval-state::before{
+    content:"";width:8px;height:8px;border-radius:50%;border:2px solid var(--blue);
+    border-top-color:transparent;animation:spin .7s linear infinite;
+  }
+  .retrieval-card.done .retrieval-state{color:var(--green);}
+  .chunk-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+  .chunk-badge{font-size:9.5px;font-family:monospace;background:var(--panel-2);
+    border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--muted);}
+
+  .answer-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:16px;transition:box-shadow .3s ease;}
+  .answer-panel.flash{box-shadow:0 0 0 2px var(--green);}
+  .lanes{display:flex;flex-direction:column;gap:14px;}
+  .lanes:empty::after{content:"— answer will appear once claims are drafted —";color:var(--gray);font-size:12px;}
+  .lane{border-left:3px solid var(--border);padding-left:12px;}
+  .lane-title{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;}
+  .claim{
+    display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:6px 0;
+    border-bottom:1px dashed var(--border);
+  }
+  .claim:last-child{border-bottom:none;}
+  .claim-text{font-size:13.5px;}
+  .claim.superseded .claim-text{text-decoration:line-through;color:var(--gray);}
+  .claim.superseded{opacity:.7;}
+  .claim.new{animation:highlight 1.6s ease;}
+  .claim-status{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;padding:1px 6px;
+    border-radius:4px;background:rgba(53,214,138,.14);color:var(--green);border:1px solid rgba(53,214,138,.4);}
+  .claim.superseded .claim-status{background:rgba(139,152,165,.12);color:var(--muted);border-color:var(--border);}
+  .claim-tag{font-size:10px;color:var(--amber);}
+  .cite{
+    cursor:help;color:var(--blue);font-size:10px;border-bottom:1px dotted var(--blue);
+    padding:0 1px;user-select:none;
+  }
+  .cite:hover, .cite:focus{color:#fff;background:rgba(77,163,255,.25);border-radius:3px;}
+
+  .raw-log{margin-top:24px;background:var(--panel);border:1px solid var(--border);border-radius:10px;}
+  .raw-log summary{cursor:pointer;padding:10px 14px;font-size:12px;color:var(--muted);}
+  .raw-log-body{max-height:220px;overflow-y:auto;padding:0 14px 12px;font-family:monospace;font-size:11px;}
+  .raw-log-body div{padding:2px 0;color:var(--muted);border-bottom:1px solid var(--panel-2);white-space:pre-wrap;word-break:break-all;}
+  .raw-log-body div b{color:var(--text);}
+
+  .tooltip{
+    position:fixed;z-index:50;background:#000;color:#fff;font-size:11px;padding:6px 9px;
+    border-radius:6px;border:1px solid var(--blue);max-width:260px;pointer-events:none;
+    font-family:monospace;box-shadow:0 4px 16px rgba(0,0,0,.5);
+  }
+
+  #toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:40;}
+  .toast{background:rgba(255,93,93,.12);border:1px solid var(--red);color:var(--red);
+    padding:8px 12px;border-radius:8px;font-size:12px;animation:toastIn .2s ease, toastOut .4s ease 2.6s forwards;}
+
+  @keyframes pop{from{opacity:0;transform:translateY(4px) scale(.97)}to{opacity:1;transform:none}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes highlight{
+    0%{background:rgba(53,214,138,.35);box-shadow:0 0 0 2px rgba(53,214,138,.5);}
+    100%{background:transparent;box-shadow:none;}
+  }
+  @keyframes toastIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+  @keyframes toastOut{to{opacity:0;transform:translateX(12px)}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="title"><span class="dot"></span> Streaming Live RAG — Session Timeline</div>
+  <div class="version-badge" id="versionBadge">Answer v0</div>
+  <div class="controls">
+    <input type="file" id="fileInput" accept=".jsonl,.json,.txt" hidden>
+    <button id="loadBtn" type="button">Load log file…</button>
+    <button id="playBtn" type="button" disabled>▶ Play</button>
+    <button id="stepBtn" type="button" disabled>⏭ Step</button>
+    <button id="restartBtn" type="button" disabled>⟲ Restart</button>
+    <select id="speedSelect" title="Playback speed">
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="4">4×</option>
+      <option value="0">Max</option>
+    </select>
+  </div>
+</header>
+
+<div class="status-bar" id="statusBar">Loading logs/mock_run.jsonl…</div>
+
+<main id="dropZone">
+  <section class="track">
+    <h2>Transcript</h2>
+    <div class="track-scroll" id="transcriptTrack"></div>
+  </section>
+
+  <section class="track">
+    <h2>Sub-Query Fan-Out</h2>
+    <div class="track-scroll" id="retrievalTrack"></div>
+  </section>
+
+  <section class="answer-panel" id="answerPanel">
+    <h2>Live Answer <span style="color:var(--gray);font-weight:400;">(hover the citation markers)</span></h2>
+    <div class="lanes" id="lanes"></div>
+  </section>
+
+  <details class="raw-log">
+    <summary>Raw event feed</summary>
+    <div class="raw-log-body" id="rawLog"></div>
+  </details>
+</main>
+
+<div id="tooltip" class="tooltip" hidden></div>
+<div id="toasts"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- DOM refs ----------
+  var statusBar = document.getElementById('statusBar');
+  var versionBadge = document.getElementById('versionBadge');
+  var transcriptTrack = document.getElementById('transcriptTrack');
+  var retrievalTrack = document.getElementById('retrievalTrack');
+  var lanesEl = document.getElementById('lanes');
+  var answerPanel = document.getElementById('answerPanel');
+  var rawLog = document.getElementById('rawLog');
+  var tooltip = document.getElementById('tooltip');
+  var toasts = document.getElementById('toasts');
+
+  var fileInput = document.getElementById('fileInput');
+  var loadBtn = document.getElementById('loadBtn');
+  var playBtn = document.getElementById('playBtn');
+  var stepBtn = document.getElementById('stepBtn');
+  var restartBtn = document.getElementById('restartBtn');
+  var speedSelect = document.getElementById('speedSelect');
+  var dropZone = document.getElementById('dropZone');
+
+  var DEFAULT_LOG_PATH = '../../logs/mock_run.jsonl'; // repo-root logs/, relative to this file
+  var NARRATIVE_CEILING = 1e6; // real epoch seconds are ~1.7e9; scripted timestamps are small
+
+  // ---------- playback state ----------
+  var events = [];
+  var idx = 0;
+  var playing = false;
+  var timer = null;
+  var lastNarrativeTs = 0;
+
+  // rendering state (reset per load/restart)
+  var lanes = {};          // sub_intent -> { el, claimsEl }
+  var claimEls = {};       // claim_id -> claim element
+  var retrievalCards = {}; // query text -> card element
+  var lastChunkEl = null;  // most recent transcript bubble, for retroactive "correction" styling
+  var version = 0;
+
+  // ---------- helpers ----------
+  function humanize(s){
+    return String(s).replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
+
+  function fmtTs(t){
+    if (typeof t !== 'number') return '';
+    if (t >= NARRATIVE_CEILING) return '(t+~now)';
+    return t.toFixed(2) + 's';
+  }
+
+  function setStatus(msg, cls){
+    statusBar.textContent = msg;
+    statusBar.className = 'status-bar' + (cls ? ' ' + cls : '');
+  }
+
+  function el(tag, cls, html){
+    var e = document.createElement('div');
+    e.className = cls || '';
+    if (html !== undefined) e.innerHTML = html;
+    if (tag && tag !== 'div') { var e2 = document.createElement(tag); e2.className = cls||''; if (html!==undefined) e2.innerHTML = html; return e2; }
+    return e;
+  }
+
+  function toast(msg){
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    toasts.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 3200);
+  }
+
+  function logRaw(ev){
+    var line = document.createElement('div');
+    line.innerHTML = '<b>' + fmtTs(ev.timestamp_s) + '</b> ' + ev.event_type + ' ' +
+      escapeHtml(JSON.stringify(ev).slice(0, 300));
+    rawLog.appendChild(line);
+    rawLog.scrollTop = rawLog.scrollHeight;
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; });
+  }
+
+  // ---------- tooltip ----------
+  function bindCiteTooltip(elm, chunkIds){
+    function show(e){
+      tooltip.textContent = 'Cited chunks: ' + chunkIds.join(', ');
+      tooltip.hidden = false;
+      if (e && typeof e.clientX === 'number') {
+        tooltip.style.left = (e.clientX + 12) + 'px';
+        tooltip.style.top = (e.clientY + 12) + 'px';
+      } else {
+        tooltip.style.left = r.left + 'px';
+        tooltip.style.top = (r.bottom + 8) + 'px';
+      }
+    }
+    elm.addEventListener('mouseenter', show);
+    elm.addEventListener('mousemove', show);
+    elm.addEventListener('mouseleave', function(){ tooltip.hidden = true; });
+    elm.addEventListener('focus', show);
+    elm.addEventListener('blur', function(){ tooltip.hidden = true; });
+  }
+
+  // ---------- claim text synthesis ----------
+  // The event log only carries claim_id / chunk_ids / sub_intent / status --
+  // no rendered sentence -- so we synthesize a short, honest placeholder per
+  // sub_intent for the "answer streaming in" visual. Real claim text would
+  // come from the ledger once it exists.
+  var CLAIM_TEMPLATES = {
+    venue_capacity: 'A venue in the requested city can accommodate the requested group size.',
+    cancellation_policy: 'Cancellation policy: full refund up to 48 hours before the session.',
+    catering_options: 'Catering options include vegetarian, non-vegetarian, and dietary-restriction menus.'
+  };
+  function claimText(ev){
+    var base = CLAIM_TEMPLATES[ev.sub_intent] || ('Answer for ' + humanize(ev.sub_intent) + '.');
+    return ev.supersedes ? base.replace(/\.$/, '') + ' (revised).' : base;
+  }
+
+  // ---------- lane / claim rendering ----------
+  function getLane(subIntent){
+    if (lanes[subIntent]) return lanes[subIntent];
+    var laneEl = document.createElement('div');
+    laneEl.className = 'lane';
+    laneEl.dataset.subIntent = subIntent;
+    var title = document.createElement('div');
+    title.className = 'lane-title';
+    title.textContent = humanize(subIntent);
+    var claimsEl = document.createElement('div');
+    claimsEl.className = 'lane-claims';
+    laneEl.appendChild(title);
+    laneEl.appendChild(claimsEl);
+    lanesEl.appendChild(laneEl);
+    var rec = { el: laneEl, claimsEl: claimsEl };
+    lanes[subIntent] = rec;
+    return rec;
+  }
+
+  function renderClaim(ev){
+    var lane = getLane(ev.sub_intent);
+
+    if (ev.supersedes && claimEls[ev.supersedes]) {
+      var oldEl = claimEls[ev.supersedes];
+      oldEl.classList.add('superseded');
+      oldEl.classList.remove('new');
+      var tag = document.createElement('span');
+      tag.className = 'claim-tag';
+      tag.textContent = '↳ superseded by ' + ev.claim_id;
+      oldEl.appendChild(tag);
+    }
+
+    var claimEl = document.createElement('div');
+    claimEl.className = 'claim ' + (ev.status || 'grounded') + ' new';
+    claimEl.dataset.claimId = ev.claim_id;
+
+    var textEl = document.createElement('span');
+    textEl.className = 'claim-text';
+    textEl.textContent = claimText(ev);
+    claimEl.appendChild(textEl);
+
+    var cite = document.createElement('sup');
+    cite.className = 'cite';
+    cite.tabIndex = 0;
+    cite.textContent = '[' + (ev.chunk_ids ? ev.chunk_ids.length : 0) + ']';
+    cite.title = 'Cited chunks: ' + (ev.chunk_ids || []).join(', ');
+    bindCiteTooltip(cite, ev.chunk_ids || []);
+    claimEl.appendChild(cite);
+
+    var statusEl = document.createElement('span');
+    statusEl.className = 'claim-status';
+    statusEl.textContent = ev.status || 'grounded';
+    claimEl.appendChild(statusEl);
+
+    lane.claimsEl.appendChild(claimEl);
+    claimEls[ev.claim_id] = claimEl;
+    setTimeout(function(){ claimEl.classList.remove('new'); }, 1700);
+  }
+
+  // ---------- retrieval fan-out rendering ----------
+  function renderRetrievalStarted(ev){
+    var card = document.createElement('div');
+    card.className = 'retrieval-card pending' + (ev.trigger !== 'sub_intent' ? ' refinement' : '');
+    var q = document.createElement('div');
+    q.className = 'retrieval-query';
+    q.textContent = '"' + ev.query + '"';
+    var state = document.createElement('div');
+    state.className = 'retrieval-state';
+    state.textContent = 'retrieving\u2026 (' + (ev.trigger || 'query') + ')';
+    card.appendChild(q);
+    card.appendChild(state);
+    retrievalTrack.appendChild(card);
+    retrievalCards[ev.query] = card;
+  }
+
+  function renderRetrievalCompleted(ev){
+    var card = retrievalCards[ev.query];
+    if (!card) { renderRetrievalStarted({ query: ev.query, trigger: 'sub_intent' }); card = retrievalCards[ev.query]; }
+    card.classList.remove('pending');
+    card.classList.add('done');
+    var state = card.querySelector('.retrieval-state');
+    var ms = (typeof ev.latency_ms === 'number') ? ev.latency_ms.toFixed(0) : '?';
+    state.textContent = ms + 'ms \u00b7 ' + ((ev.chunk_ids || []).length) + ' chunks';
+    var badges = document.createElement('div');
+    badges.className = 'chunk-badges';
+    (ev.chunk_ids || []).forEach(function(id){
+      var b = document.createElement('span');
+      b.className = 'chunk-badge';
+      b.textContent = id;
+      badges.appendChild(b);
+    });
+    card.appendChild(badges);
+  }
+
+  // ---------- transcript / controller rendering ----------
+  function renderTranscriptChunk(ev){
+    var bubble = document.createElement('div');
+    bubble.className = 'chunk-bubble';
+    bubble.textContent = ev.text;
+    var ts = document.createElement('span');
+    ts.className = 'ts';
+    ts.textContent = fmtTs(ev.timestamp_s);
+    bubble.appendChild(ts);
+    transcriptTrack.appendChild(bubble);
+    lastChunkEl = bubble;
+  }
+
+  function renderUtteranceEnd(ev){
+    var bubble = document.createElement('div');
+    bubble.className = 'chunk-bubble end';
+    bubble.textContent = '[Utterance End]';
+    transcriptTrack.appendChild(bubble);
+  }
+
+  function renderControllerDecision(ev){
+    var pill = document.createElement('div');
+    var isCorrection = ev.action !== 'decompose_and_retrieve';
+    pill.className = 'decision-pill' + (isCorrection ? ' reretrieve' : '');
+    pill.innerHTML = '<b>\u2699 ' + escapeHtml(ev.action || '') + '</b><span>' + escapeHtml(ev.reason || '') + '</span>';
+    transcriptTrack.appendChild(pill);
+    if (isCorrection && lastChunkEl) lastChunkEl.classList.add('correction');
+  }
+
+  function renderDecompositionCompleted(ev){
+    (ev.sub_intents || []).forEach(function(si){ getLane(si); });
+    var note = document.createElement('div');
+    note.className = 'fanout-note';
+    note.textContent = '\u2192 ' + (ev.sub_intents || []).join(', ') +
+      ' (' + (ev.latency_ms != null ? ev.latency_ms.toFixed(0) + 'ms' : '') + ')';
+    transcriptTrack.appendChild(note);
+  }
+
+  function renderAnswerVersion(ev){
+    version = ev.version;
+    versionBadge.textContent = 'Answer v' + version;
+    versionBadge.classList.add('bump');
+    setTimeout(function(){ versionBadge.classList.remove('bump'); }, 500);
+    answerPanel.classList.add('flash');
+    setTimeout(function(){ answerPanel.classList.remove('flash'); }, 500);
+  }
+
+  function renderSuppressed(ev){
+    toast('Suppressed: ' + (ev.reason || 'unknown reason'));
+  }
+
+  // ---------- dispatch ----------
+  var HANDLERS = {
+    transcript_chunk: renderTranscriptChunk,
+    utterance_end: renderUtteranceEnd,
+    controller_decision: renderControllerDecision,
+    decomposition_completed: renderDecompositionCompleted,
+    retrieval_started: renderRetrievalStarted,
+    retrieval_completed: renderRetrievalCompleted,
+    claim_drafted: renderClaim,
+    answer_version: renderAnswerVersion,
+    suppressed: renderSuppressed
+    // decomposition_started / answer_rendered / unknown types: raw log only
+  };
+
+  function renderEvent(ev){
+    var handler = HANDLERS[ev.event_type];
+    if (handler) handler(ev);
+    logRaw(ev);
+  }
+
+  // ---------- playback engine ----------
+  function computeDelay(ev){
+    var ts = ev.timestamp_s;
+    var d;
+    if (typeof ts === 'number' && ts < NARRATIVE_CEILING) {
+      d = (ts - lastNarrativeTs) * 1000;
+      lastNarrativeTs = ts;
+      d = Math.max(60, Math.min(d, 1600));
+    } else {
+      d = 260; // wall-clock event with no narrative-relative meaning
+    }
+    var speed = parseFloat(speedSelect.value);
+    if (!speed) return 0; // "Max"
+    return d / speed;
+  }
+
+  function updateButtons(){
+    playBtn.textContent = playing ? '\u23F8 Pause' : '\u25B6 Play';
+    var hasEvents = events.length > 0;
+    playBtn.disabled = !hasEvents || idx >= events.length;
+    stepBtn.disabled = !hasEvents || idx >= events.length;
+    restartBtn.disabled = !hasEvents;
+  }
+
+  function scheduleNext(){
+    if (!playing) return;
+    if (idx >= events.length) { playing = false; updateButtons(); setStatus('Playback complete (' + events.length + ' events).', 'ok'); return; }
+    var ev = events[idx];
+    var delay = computeDelay(ev);
+    timer = setTimeout(function(){
+      renderEvent(ev);
+      idx++;
+      updateButtons();
+      scheduleNext();
+    }, delay);
+  }
+
+  function play(){
+    if (playing || idx >= events.length) return;
+    playing = true;
+    updateButtons();
+    scheduleNext();
+  }
+
+  function pause(){
+    playing = false;
+    if (timer) clearTimeout(timer);
+    updateButtons();
+  }
+
+  function stepOnce(){
+    if (idx >= events.length) return;
+    pause();
+    renderEvent(events[idx]);
+    idx++;
+    updateButtons();
+  }
+
+  function resetView(){
+    pause();
+    idx = 0;
+    lastNarrativeTs = 0;
+    lanes = {}; claimEls = {}; retrievalCards = {}; lastChunkEl = null; version = 0;
+    transcriptTrack.innerHTML = '';
+    retrievalTrack.innerHTML = '';
+    lanesEl.innerHTML = '';
+    rawLog.innerHTML = '';
+    versionBadge.textContent = 'Answer v0';
+    updateButtons();
+  }
+
+  // ---------- loading ----------
+  function loadFromText(text, sourceLabel){
+    var lines = text.split(/\r?\n/).filter(function(l){ return l.trim().length; });
+    var parsed = [];
+    var badCount = 0;
+    lines.forEach(function(line){
+      try { parsed.push(JSON.parse(line)); }
+      catch (e) { badCount++; }
+    });
+    if (!parsed.length) {
+      setStatus('No valid JSON lines found in ' + sourceLabel + '.', 'warn');
+      return;
+    }
+    resetView();
+    events = parsed;
+    updateButtons();
+    var msg = 'Loaded ' + parsed.length + ' events from ' + sourceLabel + '.';
+    if (badCount) msg += ' (' + badCount + ' malformed lines skipped)';
+    setStatus(msg, 'ok');
+    play();
+  }
+
+  function tryAutoLoad(){
+    fetch(DEFAULT_LOG_PATH, { cache: 'no-store' })
+      .then(function(res){
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      })
+      .then(function(text){ loadFromText(text, DEFAULT_LOG_PATH); })
+      .catch(function(){
+        setStatus(
+          'Could not auto-fetch ' + DEFAULT_LOG_PATH + ' (browsers block local fetch() when opened via file://). ' +
+          'Click "Load log file\u2026" and pick logs/mock_run.jsonl, or drag it onto the page.',
+          'warn'
+        );
+      });
+  }
+
+  function readFile(file){
+    var reader = new FileReader();
+    reader.onload = function(){ loadFromText(String(reader.result), file.name); };
+    reader.onerror = function(){ setStatus('Failed to read ' + file.name + '.', 'warn'); };
+    reader.readAsText(file);
+  }
+
+  // ---------- wiring ----------
+  loadBtn.addEventListener('click', function(){ fileInput.click(); });
+  fileInput.addEventListener('change', function(){
+    if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]);
+  });
+  playBtn.addEventListener('click', function(){ playing ? pause() : play(); });
+  stepBtn.addEventListener('click', stepOnce);
+  restartBtn.addEventListener('click', function(){
+    var loaded = events;
+    resetView();
+    events = loaded;
+    updateButtons();
+    play();
+  });
+
+  dropZone.addEventListener('dragover', function(e){ e.preventDefault(); });
+  dropZone.addEventListener('drop', function(e){
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+  });
+
+  updateButtons();
+  tryAutoLoad();
+})();
+</script>
+</body>
+</html>
