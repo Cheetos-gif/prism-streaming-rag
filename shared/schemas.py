@@ -16,7 +16,13 @@ from typing import Literal
 
 @dataclass
 class Chunk:
-    """A scored passage returned from the retrieval engine."""
+    """A scored passage returned from the retrieval engine.
+
+    `score` is the dense cosine similarity between the query and the chunk, which is
+    comparable across queries and meaningful on its own. `rrf_score` is the reciprocal
+    rank fusion value that actually orders the results: it is rank-based, so its ceiling
+    is 2/(k+1) — about 0.033 — for *every* query and it must not be read as relevance.
+    """
 
     doc_id: str
     section: str
@@ -24,6 +30,8 @@ class Chunk:
     score: float
     chunk_id: str = ""
     sub_intent: str | None = None
+    rrf_score: float = 0.0
+    bm25_score: float = 0.0
 
 
 @dataclass

@@ -12,6 +12,7 @@ Approach:
 
 from __future__ import annotations
 
+import os
 import re
 
 from shared.schemas import Chunk, ChunkRecord, Claim, GroundingResult
@@ -201,3 +202,74 @@ def _assertion_supported(assertion: str, chunk_texts: list[str]) -> bool:
             return True
 
     return False
+
+
+# ---------------------------------------------------------------------------
+# Corpus coverage — "can this corpus answer that question at all?"
+# ---------------------------------------------------------------------------
+
+# Two out-of-corpus content words were the point at which the test set in
+# tests/test_evidence_coverage.py separates cleanly, and the measurement is why the
+# threshold is not a similarity: the dense cosine does NOT separate the sets (a
+# legitimate "zone A international per diem pre-approval" scores 0.459 while
+# "corporate policy for travelling to the moon" scores 0.454, so any cosine floor that
+# rejects one rejects the other). Vocabulary membership does:
+#
+#   10 answerable questions   -> 0 or 1 out-of-corpus content word ("people", "cap")
+#    7 unanswerable questions -> 2 to 5 ("moon"/"travelling", "lunar"/"habitat"/"airlock",
+#                               "pizza"/"best", "quantum"/"computing", "sourdough"/"bread")
+#
+# The signal is imperfect (a question can legitimately use two words the corpus never
+# writes), which is why it only ever downgrades a claim to `unverified` — it is surfaced
+# as uncertainty, it never refuses to answer or drops evidence.
+DEFAULT_UNKNOWN_TERM_LIMIT = int(os.getenv("EVIDENCE_UNKNOWN_TERM_LIMIT", "2"))
+
+_QUERY_FUNCTION_WORDS = {
+    # interrogatives and pronouns only: hedges and adjectives ("best", "much") are left
+    # in, because in "best pizza in Pune" the hedge is part of what makes the question
+    # unanswerable from a compressor/travel corpus.
+    "what",
+    "who",
+    "whom",
+    "whose",
+    "where",
+    "why",
+    "how",
+    "when",
+    "does",
+    "did",
+    "are",
+    "was",
+    "were",
+    "the",
+    "and",
+    "for",
+    "with",
+}
+
+
+def _content_terms(text: str) -> list[str]:
+    """Lowercase words of 3+ characters that carry subject matter."""
+    return [
+        word
+        for word in re.findall(r"[a-z0-9][a-z0-9_-]*", text.lower())
+        if len(word) >= 3 and word not in _QUERY_FUNCTION_WORDS
+    ]
+
+
+def out_of_corpus_terms(query: str, vocabulary: set[str]) -> list[str]:
+    """Return the query's content words that occur nowhere in the corpus.
+
+    `vocabulary` is `CorpusIndex.vocabulary`. Order is preserved and duplicates are
+    dropped so the caller can log the terms as they were asked.
+    """
+    seen: list[str] = []
+    for term in _content_terms(query):
+        if term not in vocabulary and term not in seen:
+            seen.append(term)
+    return seen
+
+
+def evidence_is_weak(terms: list[str], limit: int = DEFAULT_UNKNOWN_TERM_LIMIT) -> bool:
+    """Whether a list of out-of-corpus terms is enough to downgrade claims to unverified."""
+    return len(set(terms)) >= limit

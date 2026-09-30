@@ -140,6 +140,7 @@ class CorpusIndex:
     bm25: BM25Okapi
     embeddings: np.ndarray
     model: SentenceTransformer
+    _vocabulary: set[str] | None = None
 
     @classmethod
     def build(cls, corpus_path: str | Path, model_name: str = "all-MiniLM-L6-v2") -> CorpusIndex:
@@ -224,3 +225,19 @@ class CorpusIndex:
         index.model = model
 
         return index
+
+    @property
+    def vocabulary(self) -> set[str]:
+        """Every token that occurs anywhere in the corpus.
+
+        Used to tell "the corpus does not discuss this" from "the corpus discusses this
+        in words the query happens to share": a query whose content words are absent
+        from this set cannot be answered from the corpus, whatever the vector similarity
+        says.
+        """
+        if self._vocabulary is None:
+            vocabulary: set[str] = set()
+            for chunk in self.chunks:
+                vocabulary.update(tokenize(chunk.text))
+            self._vocabulary = vocabulary
+        return self._vocabulary

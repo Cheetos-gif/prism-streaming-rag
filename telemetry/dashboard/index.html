@@ -1951,21 +1951,27 @@
       } catch (e) {}
     }
 
-    renderChunkDetail({
-      chunk_id: chunkId,
-      doc_id: chunkId.split("_")[0] || "doc_unknown",
-      section: "Verified Knowledge Specification",
-      text: `Corpus snippet for ${chunkId}. This section confirms factual grounding with verified similarity score: 0.92.\nStrict isolation guarantees zero hallucination.`,
-      score: 0.92
-    });
+    renderChunkDetail(null, chunkId);
   }
 
-  function renderChunkDetail(chunk) {
+  function renderChunkDetail(chunk, missingChunkId = "") {
+    if (!chunk) {
+      drawerBody.innerHTML = `
+        <div class="chunk-view-card">
+          <div class="chunk-view-header"><span>${escapeHtml(missingChunkId || "Chunk")}</span></div>
+          <div class="chunk-view-text">Could not load this chunk from the API, so there is
+          nothing to show. No cached or invented text is displayed here.</div>
+        </div>
+      `;
+      return;
+    }
     drawerBody.innerHTML = `
       <div class="chunk-view-card">
         <div class="chunk-view-header">
           <span>${chunk.chunk_id || "Chunk"}</span>
-          <span style="color:var(--accent-emerald);">Score: ${(chunk.score || 0.92).toFixed(2)}</span>
+          <span style="color:var(--accent-emerald);">cos ${(chunk.score ?? 0).toFixed(2)}${
+            chunk.rrf_score ? ` &bull; rrf ${chunk.rrf_score.toFixed(3)}` : ""
+          }</span>
         </div>
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
           Document: <b>${chunk.doc_id || "N/A"}</b> &bull; Section: <b>${chunk.section || "General"}</b>

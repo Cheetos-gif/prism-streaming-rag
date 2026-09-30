@@ -82,9 +82,16 @@ class HybridRetriever:
                     doc_id=chunk_record.doc_id,
                     section=chunk_record.section,
                     text=chunk_record.text,
-                    score=float(rrf_scores[idx]),
+                    # Ordering is RRF, but the score a caller reads is the cosine: the RRF
+                    # sum is rank-based (max 2/(60+1) ≈ 0.033 for every query, relevant or
+                    # not), so it cannot express how well a chunk matches. Measured on this
+                    # corpus: real questions score 0.46-0.77, questions the corpus cannot
+                    # answer 0.09-0.46.
+                    score=float(dense_scores[idx]),
                     chunk_id=chunk_record.chunk_id,
                     sub_intent=None,
+                    rrf_score=float(rrf_scores[idx]),
+                    bm25_score=float(bm25_scores[idx]),
                 )
             )
 

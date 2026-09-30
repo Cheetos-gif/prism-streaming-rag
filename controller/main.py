@@ -270,8 +270,7 @@ def refine(session_id: str, req: RefineRequest):
     )
 
     # Force the text into the session buffer first
-    session.controller._buffer.append(refine_text)
-    session.controller._has_answered = True  # ensure reretrieve path
+    session.controller.ingest_utterance(refine_text, answered=True)
 
     pipeline = _get_pipeline()
     result = pipeline.process_chunk(session, chunk)
@@ -299,6 +298,12 @@ def suppress(session_id: str, req: SuppressRequest):
         raise HTTPException(404, "session not found")
 
     from controller.stream_simulator import TranscriptChunk
+
+    # The prompt has to reach the controller's utterance-end heuristics: `is_final=True`
+    # makes `on_chunk` short-circuit before the text is buffered, so without ingesting it
+    # first the suppression check never sees the request and every call returns
+    # `wait`/`empty_utterance`.
+    session.controller.ingest_utterance(req.prompt, answered=True)
 
     chunk = TranscriptChunk(
         timestamp_s=time.time(),
@@ -624,7 +629,11 @@ def direct_search(req: SearchRequest):
                 "doc_id": c.doc_id,
                 "section": c.section,
                 "text": c.text,
+                # cosine similarity (comparable across queries) + the fusion values that
+                # ordered the list; rrf_score alone is rank-based and ≈0.033 for any query.
                 "score": round(c.score, 4),
+                "rrf_score": round(c.rrf_score, 6),
+                "bm25_score": round(c.bm25_score, 4),
             }
             for c in chunks
         ],

@@ -156,6 +156,20 @@ class RetrievalController:
         """
         self._has_answered = True
 
+    def ingest_utterance(self, text: str, *, answered: bool = False) -> None:
+        """Load a standalone utterance that did not arrive as a streamed fragment.
+
+        `/refine` and `/suppress` deliver one complete request rather than pieces of a
+        sentence, and the pipeline clears the buffer as soon as an answer exists — so
+        the text has to be placed in the buffer for the utterance-end heuristics
+        (suppression, refinement) to see it. Without this, `_on_utterance_end` reads an
+        empty buffer and every such request is classified `wait`/`empty_utterance`.
+        """
+        self._buffer.clear()
+        self._buffer.append(text)
+        if answered:
+            self._has_answered = True
+
     def reset_buffer(self) -> None:
         """Clear the accumulated transcript buffer (e.g. after retrieval)."""
         self._buffer.clear()
