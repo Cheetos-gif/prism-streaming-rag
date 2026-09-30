@@ -89,6 +89,8 @@ class Pipeline:
 
         # Record the chunk
         session.append_transcript(chunk.timestamp_s, chunk.text)
+        if chunk.is_final or chunk.text == "[Utterance End]":
+            session.logger.log("utterance_end", timestamp_s=chunk.timestamp_s)
 
         # Step 1: Controller decides what to do
         decision = session.controller.on_chunk(chunk)

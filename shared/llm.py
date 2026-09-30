@@ -23,7 +23,20 @@ from dotenv import load_dotenv
 try:
     from google.genai.errors import APIError, ClientError, ServerError
 except ImportError:
-    APIError, ClientError, ServerError = Exception, Exception, Exception
+
+    class APIError(Exception):
+        def __init__(self, code_or_msg=500, details=None, *args, **kwargs):
+            super().__init__(str(code_or_msg), details, *args)
+            self.code = code_or_msg if isinstance(code_or_msg, int) else kwargs.get("code", 500)
+            self.status = kwargs.get("status", "")
+            if isinstance(details, dict) and "error" in details:
+                self.status = details["error"].get("status", self.status)
+
+    class ClientError(APIError):
+        pass
+
+    class ServerError(APIError):
+        pass
 
 load_dotenv()
 
@@ -148,6 +161,15 @@ def _clean_json_text(text: str) -> str:
     return cleaned
 
 
+class _DummyConfig:
+    def __init__(self, **kwargs):
+        self.temperature = None
+        self.system_instruction = None
+        self.response_mime_type = None
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
 def _is_transient_error(err: Exception) -> bool:
     """Check if an exception is transient for retry purposes."""
     if isinstance(err, ServerError):
@@ -157,9 +179,11 @@ def _is_transient_error(err: Exception) -> bool:
         if code in (429, 408):
             return True
         status = str(getattr(err, "status", "") or "").upper()
-        return any(
+        if any(
             term in status for term in ("RESOURCE_EXHAUSTED", "UNAVAILABLE", "DEADLINE_EXCEEDED")
-        )
+        ):
+            return True
+        return False
     if isinstance(err, APIError):
         code = getattr(err, "code", None)
         if code in (429, 408, 500, 502, 503, 504):
@@ -333,12 +357,17 @@ def generate(
     model_name = get_model_name(model)
     client = get_client()
 
-    from google.genai import types
-
-    config = types.GenerateContentConfig(
-        temperature=temperature,
-        system_instruction=system_instruction if system_instruction else None,
-    )
+    try:
+        from google.genai import types
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            system_instruction=system_instruction if system_instruction else None,
+        )
+    except ImportError:
+        config = _DummyConfig(
+            temperature=temperature,
+            system_instruction=system_instruction if system_instruction else None,
+        )
 
     last_error: Exception | None = None
     for attempt in range(1, 3):
@@ -461,13 +490,19 @@ def generate_json(
     model_name = get_model_name(model)
     client = get_client()
 
-    from google.genai import types
-
-    config = types.GenerateContentConfig(
-        temperature=temperature,
-        system_instruction=system_instruction if system_instruction else None,
-        response_mime_type="application/json",
-    )
+    try:
+        from google.genai import types
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            system_instruction=system_instruction if system_instruction else None,
+            response_mime_type="application/json",
+        )
+    except ImportError:
+        config = _DummyConfig(
+            temperature=temperature,
+            system_instruction=system_instruction if system_instruction else None,
+            response_mime_type="application/json",
+        )
 
     last_error: Exception | None = None
     for attempt in range(1, 3):

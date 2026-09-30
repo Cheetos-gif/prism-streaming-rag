@@ -8,9 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-from google.genai.errors import ClientError, ServerError
-
 from shared import llm
+from shared.llm import ClientError, ServerError
 
 
 @pytest.fixture(autouse=True)

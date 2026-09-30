@@ -185,10 +185,10 @@ retrieval/      section-aware markdown chunker, BM25 + dense hybrid retriever
 ledger/         claim ledger with versioning and supersession, grounding checks, synthesizer
 shared/         dataclass schemas, LLM provider wrapper
 telemetry/      JSONL event logger, dashboard SPA
-scripts/        demo replay runner, mock telemetry generator
+scripts/        demo replay runner, ablation benchmark suite, mock telemetry generator
 tests/          pytest suite and the G2-G6 gate evaluator
 data/corpus/    twelve corpus documents
-docs/           architecture brief, demo walkthrough
+docs/           architecture brief, demo walkthrough, ablation results, failure analysis
 .github/        CI workflow: lint, tests, gates, GHCR image push
 Dockerfile, docker-compose.yml, Makefile, pyproject.toml, requirements.txt, requirements-dev.txt, .dockerignore, .env.template
 ```
