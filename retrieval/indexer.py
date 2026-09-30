@@ -241,3 +241,17 @@ class CorpusIndex:
                 vocabulary.update(tokenize(chunk.text))
             self._vocabulary = vocabulary
         return self._vocabulary
+
+    @property
+    def section_titles(self) -> list[str]:
+        """Return formatted document and section titles for relevance checking."""
+        sections = []
+        seen = set()
+        for chunk in self.chunks:
+            doc_label = chunk.doc_id.replace("_", " ").title()
+            sec_label = chunk.section.strip()
+            entry = f"{doc_label}: {sec_label}"
+            if entry not in seen:
+                seen.add(entry)
+                sections.append(entry)
+        return sections

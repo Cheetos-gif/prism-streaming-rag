@@ -31,6 +31,7 @@ def test_missing_api_key_raises_clear_error(monkeypatch):
 
 def test_model_name_resolution(monkeypatch):
     """Test default model, env var override, and explicit argument override."""
+    monkeypatch.setenv("MODEL_PROVIDER", "gemini")
     monkeypatch.delenv("GEMINI_MODEL", raising=False)
     assert llm.get_model_name() == "gemini-2.0-flash"
 

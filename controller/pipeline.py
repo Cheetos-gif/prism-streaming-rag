@@ -211,6 +211,8 @@ class Pipeline:
                 chunks=chunks,
                 version=session.ledger.version + 1,
                 use_llm=self.use_llm,
+                query=sq.search_query,
+                section_titles=self.retriever.index.section_titles,
             )
             all_claims.extend(claims)
 
@@ -314,6 +316,8 @@ class Pipeline:
                 existing_context=constraint_text,
                 version=session.ledger.version + 1,
                 use_llm=self.use_llm,
+                query=sq.search_query,
+                section_titles=self.retriever.index.section_titles,
             )
             new_claims.extend(claims)
 
