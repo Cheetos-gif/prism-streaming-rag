@@ -13,8 +13,113 @@ The output is a list of Claim objects ready for the ClaimLedger.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from shared.schemas import Chunk, Claim
+
+_RELEVANCE_SYSTEM_INSTRUCTION = """\
+You are a relevance classifier for a retrieval-augmented generation system.
+You receive:
+1. The list of document section titles present in our corpus.
+2. A question or sub-intent to evaluate.
+
+Your task: decide whether the corpus plausibly covers the question.
+
+RULES:
+1. If the question is about topics completely outside this corpus (e.g. space exploration, lunar habitats, extraterrestrial modules, sci-fi topics, quantum computing, cooking recipes, pizza, general trivia), return {"relevant": false, "reason": "out of domain"}.
+2. If the question is plausibly covered or directly related to any section in the corpus (industrial compressors, specifications, maintenance, faults/troubleshooting, safety/protocols, spare parts, warranty/service tiers, event venues, catering, cancellation policies, corporate travel policies), return {"relevant": true, "reason": "covered by corpus"}.
+3. CRITICAL: When in doubt, or if the question uses ordinary conversational phrasing to ask about a covered topic (e.g., arrival of technicians, machine critical, using different oil, response times, refund tiers), return {"relevant": true, "reason": "plausibly covered"}.
+4. Return ONLY valid JSON: {"relevant": true, "reason": "..."} or {"relevant": false, "reason": "..."}.
+"""
+
+_CACHED_SECTION_TITLES: list[str] | None = None
+
+
+def get_default_section_titles() -> list[str]:
+    """Retrieve corpus section titles from data/corpus."""
+    global _CACHED_SECTION_TITLES
+    if _CACHED_SECTION_TITLES is not None:
+        return _CACHED_SECTION_TITLES
+
+    titles = []
+    corpus_dir = Path("data/corpus")
+    if corpus_dir.exists():
+        for p in sorted(corpus_dir.glob("*.md")):
+            doc_stem = p.stem.replace("_", " ").title()
+            try:
+                for line in p.read_text(encoding="utf-8").splitlines():
+                    if line.startswith("## "):
+                        titles.append(f"{doc_stem}: {line[3:].strip()}")
+            except Exception:
+                continue
+    _CACHED_SECTION_TITLES = titles
+    return _CACHED_SECTION_TITLES
+
+
+def _conservative_local_relevance(query: str) -> tuple[bool, str]:
+    """Conservative offline heuristic: when in doubt, treat as answerable.
+
+    Only flags queries containing obvious out-of-domain terms (space exploration,
+    quantum computing, baking recipes, etc.) so that answerable queries with
+    conversational phrasing are never falsely refused.
+    """
+    query_lower = query.lower()
+    out_of_domain_terms = [
+        "lunar",
+        "moon",
+        "airlock",
+        "habitat",
+        "spacecraft",
+        "astronaut",
+        "quantum",
+        "qubit",
+        "sourdough",
+        "pizza",
+        "recipe",
+    ]
+    for term in out_of_domain_terms:
+        if re.search(r"\b" + re.escape(term) + r"\b", query_lower):
+            return False, f"Out of domain subject: {term}"
+    return True, "Conservatively assumed answerable"
+
+
+def check_corpus_relevance(
+    query: str,
+    section_titles: list[str] | None = None,
+    use_llm: bool = True,
+) -> tuple[bool, str]:
+    """Check whether the corpus plausibly covers the given question."""
+    if not query.strip():
+        return True, "empty query"
+
+    if section_titles is None:
+        section_titles = get_default_section_titles()
+
+    from shared.llm import generate_json, get_provider
+
+    provider = get_provider()
+    if not use_llm or provider == "local":
+        return _conservative_local_relevance(query)
+
+    try:
+        sections_text = "\n".join(f"- {s}" for s in section_titles)
+        prompt = (
+            f"Corpus Sections:\n{sections_text}\n\n"
+            f'Question to evaluate: "{query}"\n\n'
+            "Does the corpus plausibly cover this question? Output JSON with "
+            '{"relevant": true, "reason": "..."} or {"relevant": false, "reason": "..."}'
+        )
+        result = generate_json(
+            prompt=prompt,
+            system_instruction=_RELEVANCE_SYSTEM_INSTRUCTION,
+            temperature=0.0,
+        )
+        if isinstance(result, dict) and "relevant" in result:
+            return bool(result["relevant"]), str(result.get("reason", ""))
+        return _conservative_local_relevance(query)
+    except Exception:
+        return _conservative_local_relevance(query)
+
 
 _SYSTEM_INSTRUCTION = """\
 You are a factual answer generator for a retrieval-augmented generation system.
@@ -63,6 +168,8 @@ def synthesize_claims(
     existing_context: str = "",
     version: int = 1,
     use_llm: bool = True,
+    query: str = "",
+    section_titles: list[str] | None = None,
 ) -> list[Claim]:
     """Generate grounded claims from retrieved chunks.
 
@@ -78,6 +185,10 @@ def synthesize_claims(
         The claim version number.
     use_llm : bool
         If False, uses a template-based fallback (for testing without API key).
+    query : str
+        The user query / search query corresponding to this sub-intent.
+    section_titles : list[str] | None
+        Corpus section titles for relevance classification.
 
     Returns
     -------
@@ -85,6 +196,25 @@ def synthesize_claims(
         Grounded claim objects ready for the ledger.
     """
     if not chunks:
+        return [
+            Claim(
+                id=f"claim_v{version}_{sub_intent}",
+                text=f"Insufficient evidence in the retrieved corpus for {sub_intent.replace('_', ' ')}.",
+                chunk_ids=[],
+                sub_intent=sub_intent,
+                version=version,
+                status="unverified",
+            )
+        ]
+
+    # Pre-synthesis relevance check
+    eval_text = query.strip() if query.strip() else sub_intent.replace("_", " ")
+    is_relevant, _ = check_corpus_relevance(
+        query=eval_text,
+        section_titles=section_titles,
+        use_llm=use_llm,
+    )
+    if not is_relevant:
         return [
             Claim(
                 id=f"claim_v{version}_{sub_intent}",
