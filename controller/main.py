@@ -26,7 +26,6 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -147,7 +146,7 @@ class PipelineResultResponse(BaseModel):
 
 @app.get("/")
 def root():
-    return RedirectResponse(url="/dashboard")
+    return RedirectResponse(url="/dashboard/")
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -158,7 +157,6 @@ def favicon():
 @app.get("/health")
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": app.version}
     try:
         retriever = _get_retriever()
         chunks = len(retriever.index.chunks) if retriever and hasattr(retriever, "index") else 71

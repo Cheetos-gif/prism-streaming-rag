@@ -1324,8 +1324,6 @@
   "use strict";
 
   // --- API & State ---
-  const API_BASE = window.location.origin;
-  // --- API & State ---
   const API_BASE = (window.location.protocol === "file:" || !window.location.origin || window.location.origin === "null")
     ? "http://localhost:8000"
     : window.location.origin;
@@ -1410,17 +1408,9 @@
         const data = await res.json();
         isBackendOnline = true;
         backendDot.className = "status-dot pulse";
-        backendStatus.textContent = `Online: ${data.provider.toUpperCase()} (${data.indexed_chunks} chunks)`;
-      } else {
-        throw new Error("HTTP " + res.status);
         backendStatus.textContent = `Online: ${(data.provider || "LOCAL").toUpperCase()} (${data.indexed_chunks || 71} chunks)`;
         return;
       }
-    } catch (e) {
-      isBackendOnline = false;
-      backendDot.className = "status-dot warning";
-      backendStatus.textContent = "Offline / Simulation Mode";
-    }
     } catch (e) {}
 
     try {
@@ -1480,17 +1470,6 @@
       const res = await fetch(`${API_BASE}/api/scenarios`);
       if (res.ok) {
         const data = await res.json();
-        scenarioSelect.innerHTML = "";
-        data.forEach(sc => {
-          const opt = document.createElement("option");
-          opt.value = sc.id;
-          opt.textContent = `${sc.category}: ${sc.title}`;
-          opt.dataset.scenario = JSON.stringify(sc);
-          scenarioSelect.appendChild(opt);
-        });
-        if (data.length > 0) {
-          currentScenario = data[0];
-          setScenario(data[0]);
         const list = Array.isArray(data) ? data : (data.scenarios || []);
         if (list && list.length > 0) {
           scenarioSelect.innerHTML = "";
@@ -1508,7 +1487,6 @@
         }
       }
     } catch (e) {
-      setFallbackScenario("field_service");
       console.warn("Failed to fetch scenarios from API:", e);
     }
     setFallbackScenario("field_service");
@@ -1518,10 +1496,6 @@
     const scId = scenarioSelect.value;
     try {
       const res = await fetch(`${API_BASE}/api/scenarios/${scId}`);
-      const sc = await res.json();
-      if (sc) {
-        currentScenario = sc;
-        setScenario(sc);
       if (res.ok) {
         const sc = await res.json();
         if (sc && sc.script) {
@@ -1530,16 +1504,12 @@
           return;
         }
       }
-    } catch (e) {
-      setFallbackScenario(scId);
-    }
     } catch (e) {}
     setFallbackScenario(scId);
   });
 
   function setScenario(sc) {
     resetState();
-    scenarioScript = sc.script;
     scenarioScript = sc.script || [];
     renderRefineChips(sc.refinements || []);
   }
