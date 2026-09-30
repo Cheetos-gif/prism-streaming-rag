@@ -41,6 +41,27 @@ def generate(output_path: Path = DEFAULT_OUTPUT_PATH) -> Path:
         timestamp_s=0.8,
         text="...Pune for 30 people, and I need...",
     )
+
+    # --- Controller: provisional early retrieval triggered ----------------
+    # Entities detected (Pune, 30 people) before utterance completes.
+    # This is what makes it "streaming" — retrieval starts mid-speech.
+    logger.log(
+        "controller_decision",
+        timestamp_s=0.8,
+        action="retrieve",
+        reason="provisional_entity_match",
+    )
+    logger.retrieval_started(
+        query="workshop venue Pune 30 people",
+        trigger="provisional",
+        timestamp_s=0.85,
+    )
+    logger.retrieval_completed(
+        query="workshop venue Pune 30 people",
+        chunk_ids=["chunk_venue_capacity_1", "chunk_venue_capacity_2"],
+        latency_ms=140.0,
+    )
+
     logger.log(
         "transcript_chunk",
         timestamp_s=1.6,
