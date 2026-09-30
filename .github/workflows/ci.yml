@@ -63,6 +63,9 @@ jobs:
             type=sha,format=short
             type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
+      # The package inherits the repository's public visibility, which is what the cluster
+      # needs: no pod there uses an imagePullSecret for ghcr.io. Verified with an anonymous
+      # token fetch of the manifest.
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -71,9 +74,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      # The cluster pulls this image without credentials, so the package has to be public:
-      # no pod in upayanmazumder/cluster uses an imagePullSecret for ghcr.io.
-      - name: Make the GHCR package public
-        run: gh api --method PATCH "/user/packages/container/prism-streaming-rag" -f visibility=public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
