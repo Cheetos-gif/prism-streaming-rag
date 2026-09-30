@@ -84,11 +84,13 @@ The dashboard's Live Studio uses the same scenarios, plus refinement suggestions
 ## Evaluation
 
 ```bash
-python -m pytest tests/ -v        # unit and API tests
-python -m tests.eval_gates        # gate evaluation
+python -m pytest tests/ -v                  # unit and API tests
+python -m tests.eval_gates                  # gates, live mode (default)
+python -m tests.eval_gates --mode offline   # gates over logs/mock_run.jsonl
+python scripts/run_ablations.py             # retrieval and controller ablations
 ```
 
-`make test`, `make gates` and `make check` wrap these. The gate runner exits non-zero if a gate fails.
+`make test` and `make gates` wrap the first two. The gate runner exits non-zero if a gate fails.
 
 | Gate | Check | Threshold |
 | :--- | :--- | :--- |
@@ -99,7 +101,7 @@ python -m tests.eval_gates        # gate evaluation
 | G5 | Late constraints produce a version transition without re-running unrelated claims | 1.00 |
 | G6 | Telemetry events have complete fields | 1.00 |
 
-G2–G6 run against `logs/mock_run.jsonl`, which is generated on demand by `scripts/generate_mock_events.py`. The runner reads the telemetry log, not a live session.
+Live mode streams four scenarios through the real pipeline, so it needs the embedding model. Offline mode scores the committed mock telemetry in `logs/mock_run.jsonl` (regenerated on demand by `scripts/generate_mock_events.py`) and is what the dashboard's `/api/eval` button runs.
 
 ## Development
 

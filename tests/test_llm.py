@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+
 from shared import llm
 from shared.llm import ClientError, ServerError
 

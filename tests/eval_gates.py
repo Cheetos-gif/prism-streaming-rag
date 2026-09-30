@@ -140,9 +140,7 @@ def eval_g3_multi_intent(events: list[dict]) -> GateResult:
     if not decomp_events:
         return GateResult("G3", False, 0.0, 0.70, "No decomposition events found")
 
-    multi_intent_count = sum(
-        1 for ev in decomp_events if len(ev.get("sub_intents", [])) >= 2
-    )
+    multi_intent_count = sum(1 for ev in decomp_events if len(ev.get("sub_intents", [])) >= 2)
 
     score = multi_intent_count / len(decomp_events) if decomp_events else 0.0
 
@@ -250,7 +248,9 @@ def eval_g6_telemetry(events: list[dict]) -> GateResult:
 # ---------------------------------------------------------------------------
 
 
-def run_live_evaluation(corpus_path: str = "data/corpus", use_llm: bool = False) -> list[GateResult]:
+def run_live_evaluation(
+    corpus_path: str = "data/corpus", use_llm: bool = False
+) -> list[GateResult]:
     """Run real live end-to-end streaming evaluation across all test scenarios."""
     from controller.pipeline import Pipeline
     from controller.session import Session

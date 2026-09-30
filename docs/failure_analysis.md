@@ -100,7 +100,7 @@ When an inquiry asks about a domain or service completely unmentioned in the cor
        id=f"claim_v{version}_{sub_intent}",
        text=f"Insufficient evidence in the retrieved corpus for {sub_intent}.",
        chunk_ids=[],
-       status="unverified"
+       status="unverified",
    )
    ```
 2. **Epistemic Uncertainty Flagging**: Ensure all claims below threshold are added to `AnswerSnapshot.uncertainty` so the UI highlights them in amber.

@@ -74,6 +74,7 @@ variables: PYTHON VENV SCENARIO PYTEST_ARGS DEMO_ARGS MOCK_EVENT_LOG
   run           Start the FastAPI engine on HOST:PORT from .env
   test          Run the pytest suite
   gates         Run the automated G2-G6 gate evaluator
+  gates-offline Same gates scored against logs/mock_run.jsonl
   lint          ruff check
   format        ruff check --fix, then ruff format
   format-check  ruff format --check, fails when files need reformatting
@@ -173,9 +174,12 @@ serve: run
 test: check-python $(DEPS_STAMP)
 	$(VENV_PY) -m pytest tests/ $(PYTEST_ARGS)
 
-.PHONY: gates
+.PHONY: gates gates-offline
 gates: check-python $(DEPS_STAMP)
 	$(VENV_PY) -m tests.eval_gates
+
+gates-offline: check-python $(DEPS_STAMP)
+	$(VENV_PY) -m tests.eval_gates --mode offline
 
 .PHONY: check
 check: lint format-check test gates

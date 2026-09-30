@@ -15,7 +15,6 @@ Measures:
 
 from __future__ import annotations
 
-import os
 import sys
 import time
 from pathlib import Path
@@ -24,7 +23,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
-from controller.decomposer import decompose, _rule_based_decompose
+
+from controller.decomposer import _rule_based_decompose
 from controller.retrieval_controller import RetrievalController
 from controller.stream_simulator import TranscriptChunk
 from retrieval.engine import HybridRetriever, cosine_similarity
@@ -214,7 +214,9 @@ def evaluate_retrieval(index: CorpusIndex):
         # 1. BM25-only
         t0 = time.perf_counter()
         tokenized = tokenize(query)
-        bm25_scores = index.bm25.get_scores(tokenized) if index.bm25 else np.zeros(len(index.chunks))
+        bm25_scores = (
+            index.bm25.get_scores(tokenized) if index.bm25 else np.zeros(len(index.chunks))
+        )
         bm25_ranks = np.argsort(bm25_scores)[::-1][:5]
         bm25_latencies.append((time.perf_counter() - t0) * 1000)
 
@@ -325,13 +327,13 @@ This experiment evaluates retrieval effectiveness across technical identifiers (
 
 | Architecture | Recall@1 | Recall@5 | MRR@5 | Mean Latency | Architectural Rationale & Behavior |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **BM25 Only** (Lexical Okapi) | {bm25['r1']*100:.1f}% | {bm25['r5']*100:.1f}% | {bm25['mrr']:.3f} | {bm25['latency']:.2f} ms | Excels on exact alphanumeric codes (`CMP7-BRG-001`, `150 CFM`), but struggles with paraphrased policy terms (*"run till failure exception"*). |
-| **Dense Only** (Cosine MiniLM) | {dense['r1']*100:.1f}% | {dense['r5']*100:.1f}% | {dense['mrr']:.3f} | {dense['latency']:.2f} ms | Captures conceptual semantic similarity (*"emergency shutdown"* $\\leftrightarrow$ *"visible smoke protocol"*), but misses exact part IDs. |
-| **Hybrid RRF ($k=60$)** (PRISM Core) | **{hybrid['r1']*100:.1f}%** | **{hybrid['r5']*100:.1f}%** | **{hybrid['mrr']:.3f}** | **{hybrid['latency']:.2f} ms** | **Optimal**: Fuses exact lexical matches and semantic representations. Reciprocal Rank Fusion ensures neither retriever dominates. |
+| **BM25 Only** (Lexical Okapi) | {bm25["r1"] * 100:.1f}% | {bm25["r5"] * 100:.1f}% | {bm25["mrr"]:.3f} | {bm25["latency"]:.2f} ms | Excels on exact alphanumeric codes (`CMP7-BRG-001`, `150 CFM`), but struggles with paraphrased policy terms (*"run till failure exception"*). |
+| **Dense Only** (Cosine MiniLM) | {dense["r1"] * 100:.1f}% | {dense["r5"] * 100:.1f}% | {dense["mrr"]:.3f} | {dense["latency"]:.2f} ms | Captures conceptual semantic similarity (*"emergency shutdown"* $\\leftrightarrow$ *"visible smoke protocol"*), but misses exact part IDs. |
+| **Hybrid RRF ($k=60$)** (PRISM Core) | **{hybrid["r1"] * 100:.1f}%** | **{hybrid["r5"] * 100:.1f}%** | **{hybrid["mrr"]:.3f}** | **{hybrid["latency"]:.2f} ms** | **Optimal**: Fuses exact lexical matches and semantic representations. Reciprocal Rank Fusion ensures neither retriever dominates. |
 
 ### Key Takeaways:
-- **Hybrid RRF achieves {hybrid['r5']*100:.1f}% Recall@5**, outperforming single-retriever baselines.
-- The rank fusion overhead adds less than **0.5 ms** while boosting MRR from {dense['mrr']:.3f} to **{hybrid['mrr']:.3f}**.
+- **Hybrid RRF achieves {hybrid["r5"] * 100:.1f}% Recall@5**, outperforming single-retriever baselines.
+- The rank fusion overhead adds less than **0.5 ms** while boosting MRR from {dense["mrr"]:.3f} to **{hybrid["mrr"]:.3f}**.
 
 ---
 
@@ -342,7 +344,7 @@ This experiment evaluates retrieval effectiveness across technical identifiers (
 | **Decision Latency** | **< 0.5 ms** | 150 – 400 ms | Instant per-chunk decisions keep conversational flow uninterrupted. |
 | **Early Retrieval Rate** | **100% (1.00)** | 95% (0.95) | Deterministic entity presence regex triggers speculative search within 800ms of spoken audio. |
 | **No-Retrieval False Trigger Rate** | **0.0% (0.00)** | 5.0% (0.05) | Regex suppression patterns instantly catch presentation requests (*"repeat in 2 bullets"*) without hitting the vector DB. |
-| **Compound Decomp Rate ($\ge 2$ sub-intents)** | **{controller_res['rule_decomp_rate']*100:.1f}%** | **100%** | Conjunction splitting captures {controller_res['rule_decomp_rate']*100:.1f}% of compound queries offline; LLM fallback handles edge-case grammatical nesting. |
+| **Compound Decomp Rate ($\ge 2$ sub-intents)** | **{controller_res["rule_decomp_rate"] * 100:.1f}%** | **100%** | Conjunction splitting captures {controller_res["rule_decomp_rate"] * 100:.1f}% of compound queries offline; LLM fallback handles edge-case grammatical nesting. |
 | **Cloud Cost** | **$0.00** | $0.00 (Groq) / API Tier | Zero cost execution guaranteed on any evaluation laptop or sandbox. |
 
 ---
@@ -353,7 +355,7 @@ This experiment evaluates retrieval effectiveness across technical identifiers (
 | :--- | :---: | :---: | :---: |
 | **Acoustic Utterance Wait** | 2,100 ms (full turn) | **0 ms** (streamed) | **Eliminated** |
 | **Intent Detection & Controller** | Sequential (after utterance) | **0.3 ms** (heuristic) | **Instant** |
-| **Retrieval (Hybrid RRF)** | 1,200 ms (serial) | **{hybrid['latency']:.1f} ms** (parallel) | **> 10x faster** |
+| **Retrieval (Hybrid RRF)** | 1,200 ms (serial) | **{hybrid["latency"]:.1f} ms** (parallel) | **> 10x faster** |
 | **Late Refinement Update** | Full 3,500 ms restart | **180 ms** (delta query only) | **19x faster** |
 
 """
@@ -369,12 +371,14 @@ def main():
     retrieval_res = evaluate_retrieval(index)
     print("\n--- Retrieval Ablation Results ---")
     for k, v in retrieval_res.items():
-        print(f"  {k.upper():<8} -> Recall@1: {v['r1']*100:.1f}% | Recall@5: {v['r5']*100:.1f}% | MRR@5: {v['mrr']:.3f} | Latency: {v['latency']:.2f}ms")
+        print(
+            f"  {k.upper():<8} -> Recall@1: {v['r1'] * 100:.1f}% | Recall@5: {v['r5'] * 100:.1f}% | MRR@5: {v['mrr']:.3f} | Latency: {v['latency']:.2f}ms"
+        )
 
     print("\n[PRISM] Running controller and decomposer ablations...")
     controller_res = evaluate_controllers()
-    print(f"  False-Trigger Rate: {controller_res['false_trigger_rate']*100:.1f}%")
-    print(f"  Multi-Intent Decomp Rate: {controller_res['rule_decomp_rate']*100:.1f}%")
+    print(f"  False-Trigger Rate: {controller_res['false_trigger_rate'] * 100:.1f}%")
+    print(f"  Multi-Intent Decomp Rate: {controller_res['rule_decomp_rate'] * 100:.1f}%")
 
     out_path = Path("docs") / "ablation_results.md"
     generate_report(retrieval_res, controller_res, out_path)

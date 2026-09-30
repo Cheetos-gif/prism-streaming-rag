@@ -38,6 +38,7 @@ except ImportError:
     class ServerError(APIError):
         pass
 
+
 load_dotenv()
 
 DEFAULT_MODEL = "gemini-2.0-flash"
@@ -179,11 +180,9 @@ def _is_transient_error(err: Exception) -> bool:
         if code in (429, 408):
             return True
         status = str(getattr(err, "status", "") or "").upper()
-        if any(
+        return any(
             term in status for term in ("RESOURCE_EXHAUSTED", "UNAVAILABLE", "DEADLINE_EXCEEDED")
-        ):
-            return True
-        return False
+        )
     if isinstance(err, APIError):
         code = getattr(err, "code", None)
         if code in (429, 408, 500, 502, 503, 504):
@@ -359,6 +358,7 @@ def generate(
 
     try:
         from google.genai import types
+
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction if system_instruction else None,
@@ -492,6 +492,7 @@ def generate_json(
 
     try:
         from google.genai import types
+
         config = types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_instruction if system_instruction else None,
