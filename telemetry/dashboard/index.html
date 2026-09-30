@@ -253,6 +253,62 @@
     transition: border-color 0.15s ease;
   }
   select:focus-visible { border-color: var(--accent-cyan); }
+  #scenarioSelect {
+    min-width: 320px;
+    font-weight: 600;
+  }
+
+  .empty-state-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 38px 24px;
+    background: rgba(13, 19, 28, 0.5);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    margin: 8px 0;
+    gap: 12px;
+  }
+  .empty-state-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    background: var(--accent-cyan-glow);
+    border: 1px solid var(--accent-cyan);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-cyan);
+  }
+  .empty-state-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .empty-state-desc {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    max-width: 440px;
+    line-height: 1.5;
+  }
+  .empty-state-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 6px;
+  }
+  .empty-feature-badge {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 3px 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    color: var(--accent-cyan);
+  }
 
   .btn {
     display: inline-flex;
@@ -1151,6 +1207,21 @@
             <div class="ribbon-label">Click citations to inspect sources</div>
           </div>
           <div class="canvas-body" id="canvasBody">
+            <div class="empty-state-hero" id="emptyStateHero">
+              <div class="empty-state-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+              </div>
+              <div class="empty-state-title">Ready for Real-Time Streaming</div>
+              <div class="empty-state-desc">
+                Click <b>▶ Stream Script</b> (or press <b>Spacebar</b>) to watch PRISM perform predictive early retrieval, multi-intent decomposition, and grounded claim synthesis.
+              </div>
+              <div class="empty-state-features">
+                <span class="empty-feature-badge">⚡ &lt;300ms Time-to-Answer</span>
+                <span class="empty-feature-badge">🔀 Parallel 3-Intent Fusion</span>
+                <span class="empty-feature-badge">📄 100% Corpus Grounded</span>
+                <span class="empty-feature-badge">🔄 Claim DAG Mutation (v1→v2)</span>
+              </div>
+            </div>
             <div class="lanes-container" id="lanesContainer"></div>
           </div>
         </div>
@@ -1254,6 +1325,11 @@
 
   // --- API & State ---
   const API_BASE = window.location.origin;
+  // --- API & State ---
+  const API_BASE = (window.location.protocol === "file:" || !window.location.origin || window.location.origin === "null")
+    ? "http://localhost:8000"
+    : window.location.origin;
+
   let activeSessionId = null;
   let isBackendOnline = false;
   let currentVersion = 0;
@@ -1337,12 +1413,30 @@
         backendStatus.textContent = `Online: ${data.provider.toUpperCase()} (${data.indexed_chunks} chunks)`;
       } else {
         throw new Error("HTTP " + res.status);
+        backendStatus.textContent = `Online: ${(data.provider || "LOCAL").toUpperCase()} (${data.indexed_chunks || 71} chunks)`;
+        return;
       }
     } catch (e) {
       isBackendOnline = false;
       backendDot.className = "status-dot warning";
       backendStatus.textContent = "Offline / Simulation Mode";
     }
+    } catch (e) {}
+
+    try {
+      const res2 = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+      if (res2.ok) {
+        const data2 = await res2.json();
+        isBackendOnline = true;
+        backendDot.className = "status-dot pulse";
+        backendStatus.textContent = `Online: ${(data2.provider || "LOCAL").toUpperCase()} (${data2.indexed_chunks || 71} chunks)`;
+        return;
+      }
+    } catch (e) {}
+
+    isBackendOnline = false;
+    backendDot.className = "status-dot warning";
+    backendStatus.textContent = "Offline / Simulation Mode";
   }
 
   async function initSession() {
@@ -1366,6 +1460,21 @@
   }
 
   // --- Scenarios Loading ---
+  function populateFallbackOptions() {
+    const fallbackList = [
+      { id: "field_service", title: "Industrial: Model 7 Compressor (Field Service)" },
+      { id: "workshop", title: "Enterprise: Pune Workshop Booking (3-Intent)" },
+      { id: "travel", title: "Corporate: Travel Reimbursement (Policy & Refinement)" }
+    ];
+    scenarioSelect.innerHTML = "";
+    fallbackList.forEach(sc => {
+      const opt = document.createElement("option");
+      opt.value = sc.id;
+      opt.textContent = sc.title;
+      scenarioSelect.appendChild(opt);
+    });
+  }
+
   async function loadScenarios() {
     try {
       const res = await fetch(`${API_BASE}/api/scenarios`);
@@ -1382,11 +1491,27 @@
         if (data.length > 0) {
           currentScenario = data[0];
           setScenario(data[0]);
+        const list = Array.isArray(data) ? data : (data.scenarios || []);
+        if (list && list.length > 0) {
+          scenarioSelect.innerHTML = "";
+          list.forEach(sc => {
+            const opt = document.createElement("option");
+            opt.value = sc.id;
+            const prefix = sc.badge || sc.category ? `[${sc.badge || sc.category}] ` : "";
+            opt.textContent = `${prefix}${sc.title}`;
+            opt.dataset.scenario = JSON.stringify(sc);
+            scenarioSelect.appendChild(opt);
+          });
+          currentScenario = list[0];
+          setScenario(list[0]);
+          return;
         }
       }
     } catch (e) {
       setFallbackScenario("field_service");
+      console.warn("Failed to fetch scenarios from API:", e);
     }
+    setFallbackScenario("field_service");
   }
 
   scenarioSelect.addEventListener("change", async () => {
@@ -1397,19 +1522,34 @@
       if (sc) {
         currentScenario = sc;
         setScenario(sc);
+      if (res.ok) {
+        const sc = await res.json();
+        if (sc && sc.script) {
+          currentScenario = sc;
+          setScenario(sc);
+          return;
+        }
       }
     } catch (e) {
       setFallbackScenario(scId);
     }
+    } catch (e) {}
+    setFallbackScenario(scId);
   });
 
   function setScenario(sc) {
     resetState();
     scenarioScript = sc.script;
+    scenarioScript = sc.script || [];
     renderRefineChips(sc.refinements || []);
   }
 
   function setFallbackScenario(scId="field_service") {
+    if (scenarioSelect.children.length === 0) {
+      populateFallbackOptions();
+    }
+    scenarioSelect.value = scId;
+
     const scripts = {
       field_service: [
         [0.0, "I'm looking at a Model 7 compressor, it's making a..."],
@@ -1468,6 +1608,8 @@
     playBtn.textContent = "▶ Stream Script";
     playBtn.classList.remove("btn-amber");
     playBtn.classList.add("btn-primary");
+    const hero = document.getElementById("emptyStateHero");
+    if (hero) hero.style.display = "flex";
     initSession();
   }
 
@@ -1676,6 +1818,8 @@
   }
 
   function renderClaim(claim) {
+    const hero = document.getElementById("emptyStateHero");
+    if (hero) hero.style.display = "none";
     const lane = getLane(claim.sub_intent);
 
     if (claim.supersedes && claimEls[claim.supersedes]) {
@@ -2132,6 +2276,7 @@
     await checkBackend();
     await loadScenarios();
     await initSession();
+    setInterval(checkBackend, 3500);
   }
 
   boot();

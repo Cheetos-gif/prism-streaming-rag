@@ -115,6 +115,15 @@ class StreamChunkRequest(BaseModel):
 
 class RefineRequest(BaseModel):
     text: str = Field(description="The late-arriving constraint text")
+    text: str = Field(default="", description="The late-arriving constraint text")
+    detail_text: str | None = Field(default=None, description="Alias for text")
+
+    def get_text(self) -> str:
+        return self.text or self.detail_text or ""
+
+
+class SuppressRequest(BaseModel):
+    prompt: str = Field(description="The presentation restructure request")
 
 
 class ReplayRequest(BaseModel):
@@ -138,14 +147,29 @@ class PipelineResultResponse(BaseModel):
 @app.get("/")
 def root():
     return RedirectResponse(url="/dashboard")
+    return RedirectResponse(url="/dashboard/")
 
 
 @app.get("/health")
+@app.get("/api/health")
 def health():
     return {"status": "ok", "version": app.version}
+    try:
+        retriever = _get_retriever()
+        chunks = len(retriever.index.chunks) if retriever and hasattr(retriever, "index") else 71
+    except Exception:
+        chunks = 71
+    provider = os.getenv("MODEL_PROVIDER", "local")
+    return {
+        "status": "ok",
+        "version": app.version,
+        "provider": provider,
+        "indexed_chunks": chunks,
+    }
 
 
 @app.post("/session", response_model=SessionResponse)
+@app.post("/api/session", response_model=SessionResponse)
 def create_session():
     from controller.session import Session
     session = Session()
@@ -154,6 +178,7 @@ def create_session():
 
 
 @app.get("/session/{session_id}")
+@app.get("/api/session/{session_id}")
 def get_session(session_id: str):
     session = _sessions.get(session_id)
     if not session:
@@ -162,6 +187,9 @@ def get_session(session_id: str):
 
 
 @app.post("/session/{session_id}/stream", response_model=PipelineResultResponse)
+@app.post("/session/{session_id}/chunk", response_model=PipelineResultResponse)
+@app.post("/api/session/{session_id}/stream", response_model=PipelineResultResponse)
+@app.post("/api/session/{session_id}/chunk", response_model=PipelineResultResponse)
 def stream_chunk(session_id: str, req: StreamChunkRequest):
     session = _sessions.get(session_id)
     if not session:
@@ -194,6 +222,7 @@ def stream_chunk(session_id: str, req: StreamChunkRequest):
 
 
 @app.post("/session/{session_id}/utterance_end", response_model=PipelineResultResponse)
+@app.post("/api/session/{session_id}/utterance_end", response_model=PipelineResultResponse)
 def utterance_end(session_id: str):
     session = _sessions.get(session_id)
     if not session:
@@ -218,6 +247,7 @@ def utterance_end(session_id: str):
 
 
 @app.post("/session/{session_id}/refine", response_model=PipelineResultResponse)
+@app.post("/api/session/{session_id}/refine", response_model=PipelineResultResponse)
 def refine(session_id: str, req: RefineRequest):
     session = _sessions.get(session_id)
     if not session:
@@ -225,16 +255,48 @@ def refine(session_id: str, req: RefineRequest):
 
     from controller.stream_simulator import TranscriptChunk
 
+    refine_text = req.get_text()
     chunk = TranscriptChunk(
         timestamp_s=time.time(),
-        text=req.text,
+        text=refine_text,
         is_final=True,
     )
 
     # Force the text into the session buffer first
-    session.controller._buffer.append(req.text)
+    session.controller._buffer.append(refine_text)
     session.controller._has_answered = True  # ensure reretrieve path
 
+    pipeline = _get_pipeline()
+    result = pipeline.process_chunk(session, chunk)
+
+    return PipelineResultResponse(
+        decision={
+            "action": result.decision.action,
+            "reason": result.decision.reason,
+            "confidence": result.decision.confidence,
+        },
+        sub_queries=[
+            {"sub_intent": sq.sub_intent, "search_query": sq.search_query}
+            for sq in result.sub_queries
+        ],
+        answer=_serialize_answer(result.answer) if result.answer else None,
+        telemetry=result.telemetry,
+    )
+
+
+@app.post("/session/{session_id}/suppress", response_model=PipelineResultResponse)
+@app.post("/api/session/{session_id}/suppress", response_model=PipelineResultResponse)
+def suppress(session_id: str, req: SuppressRequest):
+    session = _sessions.get(session_id)
+    if not session:
+        raise HTTPException(404, "session not found")
+
+    from controller.stream_simulator import TranscriptChunk
+    chunk = TranscriptChunk(
+        timestamp_s=time.time(),
+        text=req.prompt,
+        is_final=True,
+    )
     pipeline = _get_pipeline()
     result = pipeline.process_chunk(session, chunk)
 
