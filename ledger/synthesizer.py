@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import re
 
-from ledger.grounding import evidence_is_weak
 from shared.schemas import Chunk, Claim
 
 _SYSTEM_INSTRUCTION = """\
@@ -41,12 +40,7 @@ Output:
 """
 
 
-def _build_prompt(
-    sub_intent: str,
-    chunks: list[Chunk],
-    context: str = "",
-    out_of_corpus: list[str] | None = None,
-) -> str:
+def _build_prompt(sub_intent: str, chunks: list[Chunk], context: str = "") -> str:
     """Build the synthesis prompt with evidence chunks."""
     chunk_text = "\n\n".join(
         f'chunk_id: "{c.chunk_id}", source: "Doc_{c.doc_id} §{c.section}", '
@@ -59,13 +53,6 @@ def _build_prompt(
     if context:
         prompt += f"Existing answer context (for consistency):\n{context}\n\n"
     prompt += f"Evidence chunks:\n{chunk_text}\n\n"
-    if out_of_corpus:
-        prompt += (
-            "WARNING: these words of the question appear nowhere in the whole corpus: "
-            f"{', '.join(out_of_corpus)}. If the chunks below do not actually address the "
-            "question, do not answer it: reply with the insufficient-evidence sentence and "
-            "grounded=false.\n\n"
-        )
     prompt += "Generate grounded claim(s) answering the sub-question."
     return prompt
 
@@ -76,7 +63,6 @@ def synthesize_claims(
     existing_context: str = "",
     version: int = 1,
     use_llm: bool = True,
-    out_of_corpus: list[str] | None = None,
 ) -> list[Claim]:
     """Generate grounded claims from retrieved chunks.
 
@@ -92,11 +78,6 @@ def synthesize_claims(
         The claim version number.
     use_llm : bool
         If False, uses a template-based fallback (for testing without API key).
-    out_of_corpus : list[str] | None
-        Query content words that occur nowhere in the corpus, from
-        `grounding.out_of_corpus_terms`. When enough of them accumulate, the answer is
-        kept but marked `unverified` so it surfaces as uncertainty instead of being
-        presented as a grounded fact.
 
     Returns
     -------
@@ -116,18 +97,12 @@ def synthesize_claims(
         ]
 
     if not use_llm:
-        claims = _template_synthesize(sub_intent, chunks, version)
-    else:
-        try:
-            claims = _llm_synthesize(sub_intent, chunks, existing_context, version, out_of_corpus)
-        except Exception:
-            claims = _template_synthesize(sub_intent, chunks, version)
+        return _template_synthesize(sub_intent, chunks, version)
 
-    if out_of_corpus and evidence_is_weak(out_of_corpus):
-        for claim in claims:
-            claim.status = "unverified"
-
-    return claims
+    try:
+        return _llm_synthesize(sub_intent, chunks, existing_context, version)
+    except Exception:
+        return _template_synthesize(sub_intent, chunks, version)
 
 
 def _llm_synthesize(
@@ -135,12 +110,11 @@ def _llm_synthesize(
     chunks: list[Chunk],
     existing_context: str,
     version: int,
-    out_of_corpus: list[str] | None = None,
 ) -> list[Claim]:
     """Use the configured model to generate claims from chunks."""
     from shared.llm import generate_json
 
-    prompt = _build_prompt(sub_intent, chunks, existing_context, out_of_corpus)
+    prompt = _build_prompt(sub_intent, chunks, existing_context)
     result = generate_json(
         prompt=prompt,
         system_instruction=_SYSTEM_INSTRUCTION,
