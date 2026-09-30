@@ -163,8 +163,8 @@ To guarantee that any evaluator, judge, or developer can run PRISM indefinitely 
    - Deterministic regex entity extraction, rule-based multi-intent deconstruction, and template-based grounded claim synthesis.
    - Requires zero network calls, zero API keys, and \$0 cost.
 2. **Groq Cloud Integration (Optional High-Performance)**:
-   - Provides free access to `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`.
-   - Free tier includes 30 Requests/Min and 14,400 Requests/Day with zero billing setup.
+   - Default model `qwen/qwen3.8-27b`; the models a key may use are listed by `GET https://api.groq.com/openai/v1/models`.
+   - Limits are per key and per model and come back in the `x-ratelimit-*` response headers (observed on this project's key: 500,000 requests and 250,000 tokens/minute).
 3. **Ollama Local LLM (Optional Self-Hosted)**:
    - Direct connection to locally running models (`llama3.2`, `mistral`, `qwen2.5`) via `http://localhost:11434`.
 

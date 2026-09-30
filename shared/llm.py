@@ -41,7 +41,7 @@ except ImportError:
 load_dotenv()
 
 DEFAULT_MODEL = "gemini-2.0-flash"
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
 DEFAULT_OLLAMA_MODEL = "llama3.2"
 DEFAULT_OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 DEFAULT_RETRY_DELAY_SECONDS = 1.0
@@ -208,7 +208,7 @@ def _generate_openai_compatible(
     temperature: float = 0.2,
     base_url: str = "https://api.groq.com/openai/v1",
     api_key: str = "",
-    model: str = "llama-3.3-70b-versatile",
+    model: str = DEFAULT_GROQ_MODEL,
     is_json: bool = False,
 ) -> str:
     """Call an OpenAI-compatible endpoint (Groq, Ollama, OpenRouter, etc.)."""
