@@ -62,7 +62,7 @@ docker compose up --build
 docker compose down
 ```
 
-CI builds and pushes `ghcr.io/cheetos-gif/prism-streaming-rag` on every push to `main`; tags are the branch name, `sha-<short>` and `latest`. The image installs CPU-only torch, so no CUDA libraries are included.
+CI builds and pushes `ghcr.io/cheetos-gif/prism-streaming-rag` on every push to `main`; tags are the branch name, `sha-<short>` and `latest`. The image installs CPU-only torch, so no CUDA libraries are included. The cluster deployment in `upayanmazumder/cluster` tracks that `latest` tag and serves it at https://prism.upayan.dev.
 
 Make equivalents: `make run`, `make docker-up`, `make docker-down`, `make docker-logs`.
 
