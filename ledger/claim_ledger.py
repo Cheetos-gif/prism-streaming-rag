@@ -18,16 +18,15 @@ Key operations:
     refine()       → marks affected claims superseded, plans re-retrieval
     current_answer() → snapshot of all active claims
 """
+
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from shared.schemas import (
     AnswerSnapshot,
     Claim,
-    Chunk,
     RefinementPlan,
     SubQuery,
 )
@@ -47,8 +46,8 @@ class ClaimLedger:
     def __init__(self, session_id: str, logger: TelemetryLogger | None = None):
         self.session_id = session_id
         self.version = 0
-        self._claims: dict[str, Claim] = {}          # claim_id → Claim
-        self._history: list[AnswerSnapshot] = []      # ordered snapshots
+        self._claims: dict[str, Claim] = {}  # claim_id → Claim
+        self._history: list[AnswerSnapshot] = []  # ordered snapshots
         self._logger = logger
 
     # ------------------------------------------------------------------
@@ -124,21 +123,20 @@ class ClaimLedger:
         queries_to_rerun: list[SubQuery] = []
 
         for claim_id, claim in self._claims.items():
-            if (
-                claim.sub_intent in affected_intents
-                and claim.status != "superseded"
-            ):
+            if claim.sub_intent in affected_intents and claim.status != "superseded":
                 claims_to_supersede.append(claim_id)
                 # Mark superseded immediately
                 claim.status = "superseded"
 
         # Build re-retrieval queries from the affected intents
         for intent in affected_intents:
-            queries_to_rerun.append(SubQuery(
-                sub_intent=intent,
-                search_query=f"{constraint_text} {intent.replace('_', ' ')}",
-                original_span=constraint_text,
-            ))
+            queries_to_rerun.append(
+                SubQuery(
+                    sub_intent=intent,
+                    search_query=f"{constraint_text} {intent.replace('_', ' ')}",
+                    original_span=constraint_text,
+                )
+            )
 
         # Telemetry
         if self._logger and claims_to_supersede:
@@ -209,17 +207,11 @@ class ClaimLedger:
 
     def get_claims_by_intent(self, sub_intent: str) -> list[Claim]:
         """Return all claims (including superseded) for a sub-intent."""
-        return [
-            c for c in self._claims.values()
-            if c.sub_intent == sub_intent
-        ]
+        return [c for c in self._claims.values() if c.sub_intent == sub_intent]
 
     def get_active_claims(self) -> list[Claim]:
         """Return only non-superseded claims."""
-        return [
-            c for c in self._claims.values()
-            if c.status != "superseded"
-        ]
+        return [c for c in self._claims.values() if c.status != "superseded"]
 
     def get_history(self) -> list[AnswerSnapshot]:
         """Return the full version history."""
@@ -247,9 +239,8 @@ class ClaimLedger:
         for claim in active:
             citations[claim.id] = claim.chunk_ids
             seen_intents.add(claim.sub_intent)
-            if claim.status == "unverified":
-                if claim.sub_intent not in uncertainty:
-                    uncertainty.append(claim.sub_intent)
+            if claim.status == "unverified" and claim.sub_intent not in uncertainty:
+                uncertainty.append(claim.sub_intent)
 
         return AnswerSnapshot(
             version=self.version,
@@ -258,4 +249,3 @@ class ClaimLedger:
             uncertainty=uncertainty,
             timestamp_s=time.time(),
         )
-

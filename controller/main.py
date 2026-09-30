@@ -16,13 +16,14 @@ Startup:
     python -m controller.main
     docker compose up
 """
+
 from __future__ import annotations
 
+import contextlib
 import os
 import time
-import json
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -43,8 +44,8 @@ _sessions: dict = {}
 def _get_retriever():
     global _retriever
     if _retriever is None:
-        from retrieval.indexer import CorpusIndex
         from retrieval.engine import HybridRetriever
+        from retrieval.indexer import CorpusIndex
 
         corpus_path = os.getenv("CORPUS_PATH", "./data/corpus")
         embedding_model = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
@@ -60,6 +61,7 @@ def _get_pipeline():
     if _pipeline is None:
         from controller.pipeline import Pipeline
         from shared.llm import get_provider
+
         provider = get_provider()
         use_llm = provider in ("groq", "ollama", "openrouter", "openai", "gemini")
         print(f"[PRISM] Active inference provider: {provider.upper()} (LLM enabled: {use_llm})")
@@ -74,6 +76,7 @@ def _get_pipeline():
 # App
 # ---------------------------------------------------------------------------
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Pre-build index on startup
@@ -83,12 +86,11 @@ async def lifespan(app: FastAPI):
         print(f"[PRISM] Warning: failed to build index at startup: {e}")
         print("[PRISM] Server will start anyway — index built on first request.")
     yield
-    # Cleanup sessions
-    for sid, session in _sessions.items():
-        try:
+    # Cleanup sessions. contextlib.suppress is qualified because the route
+    # handler below is also named suppress.
+    for session in _sessions.values():
+        with contextlib.suppress(Exception):
             session.close()
-        except Exception:
-            pass
 
 
 app = FastAPI(
@@ -103,6 +105,7 @@ app = FastAPI(
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+
 class SessionResponse(BaseModel):
     session_id: str
 
@@ -114,7 +117,6 @@ class StreamChunkRequest(BaseModel):
 
 
 class RefineRequest(BaseModel):
-    text: str = Field(description="The late-arriving constraint text")
     text: str = Field(default="", description="The late-arriving constraint text")
     detail_text: str | None = Field(default=None, description="Alias for text")
 
@@ -143,6 +145,7 @@ class PipelineResultResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @app.get("/")
 def root():
@@ -175,6 +178,7 @@ def health():
 @app.post("/api/session", response_model=SessionResponse)
 def create_session():
     from controller.session import Session
+
     session = Session()
     _sessions[session.session_id] = session
     return SessionResponse(session_id=session.session_id)
@@ -295,6 +299,7 @@ def suppress(session_id: str, req: SuppressRequest):
         raise HTTPException(404, "session not found")
 
     from controller.stream_simulator import TranscriptChunk
+
     chunk = TranscriptChunk(
         timestamp_s=time.time(),
         text=req.prompt,
@@ -325,6 +330,7 @@ def get_telemetry(session_id: str):
         raise HTTPException(404, "session not found")
 
     from telemetry.logger import read_events
+
     try:
         events = read_events(session.logger.output_path)
     except FileNotFoundError:
@@ -340,7 +346,7 @@ def replay(req: ReplayRequest):
     Useful for demos and automated evaluation.
     """
     from controller.session import Session
-    from controller.stream_simulator import StreamSimulator, TranscriptChunk
+    from controller.stream_simulator import StreamSimulator
     from telemetry.logger import read_events
 
     session = Session()
@@ -352,12 +358,14 @@ def replay(req: ReplayRequest):
 
     for chunk in simulator.chunks():
         result = pipeline.process_chunk(session, chunk)
-        results.append({
-            "timestamp_s": chunk.timestamp_s,
-            "text": chunk.text,
-            "decision": result.decision.action,
-            "version": result.answer.version if result.answer else session.ledger.version,
-        })
+        results.append(
+            {
+                "timestamp_s": chunk.timestamp_s,
+                "text": chunk.text,
+                "decision": result.decision.action,
+                "version": result.answer.version if result.answer else session.ledger.version,
+            }
+        )
 
     # Read the telemetry log
     try:
@@ -379,6 +387,7 @@ def replay(req: ReplayRequest):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _serialize_answer(snapshot):
     """Convert AnswerSnapshot to a JSON-serializable dict."""
@@ -407,6 +416,7 @@ def _serialize_answer(snapshot):
 # Extended Exploration & Governance APIs
 # ---------------------------------------------------------------------------
 
+
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
@@ -416,6 +426,7 @@ class SearchRequest(BaseModel):
 def get_scenarios():
     """Returns curated demo scenarios for interactive replay in the UI."""
     from controller.stream_simulator import FIELD_SERVICE_SCRIPT, TRAVEL_WORKSHOP_SCRIPT
+
     return {
         "scenarios": [
             {
@@ -425,10 +436,19 @@ def get_scenarios():
                 "description": "Technician with knocking noise assessing whether compressor can run till Friday.",
                 "script": [list(x) for x in FIELD_SERVICE_SCRIPT],
                 "refinements": [
-                    {"label": "Model 9 instead", "text": "Actually, we are looking at the Model 9 compressor, not Model 7."},
-                    {"label": "Continuous load", "text": "The knocking is continuous under full load and vibration measured 7.5 mm/s."},
-                    {"label": "Emergency triggers", "text": "Please summarize the emergency shutdown triggers in two bullets."}
-                ]
+                    {
+                        "label": "Model 9 instead",
+                        "text": "Actually, we are looking at the Model 9 compressor, not Model 7.",
+                    },
+                    {
+                        "label": "Continuous load",
+                        "text": "The knocking is continuous under full load and vibration measured 7.5 mm/s.",
+                    },
+                    {
+                        "label": "Emergency triggers",
+                        "text": "Please summarize the emergency shutdown triggers in two bullets.",
+                    },
+                ],
             },
             {
                 "id": "workshop",
@@ -437,10 +457,19 @@ def get_scenarios():
                 "description": "Compound 3-intent inquiry: capacity for 30 attendees, cancellation policy, and catering.",
                 "script": [list(x) for x in TRAVEL_WORKSHOP_SCRIPT],
                 "refinements": [
-                    {"label": "Increase to 50 pax", "text": "Sorry, actually make that 50 people, not 30."},
-                    {"label": "Dietary requirements", "text": "What are the specific Jain and vegan catering accommodations?"},
-                    {"label": "Two bullets policy", "text": "Please repeat the cancellation refund tiers in two concise bullets."}
-                ]
+                    {
+                        "label": "Increase to 50 pax",
+                        "text": "Sorry, actually make that 50 people, not 30.",
+                    },
+                    {
+                        "label": "Dietary requirements",
+                        "text": "What are the specific Jain and vegan catering accommodations?",
+                    },
+                    {
+                        "label": "Two bullets policy",
+                        "text": "Please repeat the cancellation refund tiers in two concise bullets.",
+                    },
+                ],
             },
             {
                 "id": "travel",
@@ -449,14 +478,23 @@ def get_scenarios():
                 "description": "Employee travel policy with late-arriving international constraint.",
                 "script": [
                     [0.0, "Summarize the travel reimbursement rule for an employee trip."],
-                    [1.0, "[Utterance End]"]
+                    [1.0, "[Utterance End]"],
                 ],
                 "refinements": [
-                    {"label": "International trip", "text": "Actually, the trip was international and the booking was made after travel."},
-                    {"label": "Zone A rates", "text": "What is the per diem rate for Zone A cities like London or Tokyo?"},
-                    {"label": "Shorten policy", "text": "Make your last answer shorter in two bullets."}
-                ]
-            }
+                    {
+                        "label": "International trip",
+                        "text": "Actually, the trip was international and the booking was made after travel.",
+                    },
+                    {
+                        "label": "Zone A rates",
+                        "text": "What is the per diem rate for Zone A cities like London or Tokyo?",
+                    },
+                    {
+                        "label": "Shorten policy",
+                        "text": "Make your last answer shorter in two bullets.",
+                    },
+                ],
+            },
         ]
     }
 
@@ -467,30 +505,32 @@ def get_corpus_summary():
     retriever = _get_retriever()
     corpus_dir = Path(os.getenv("CORPUS_PATH", "./data/corpus"))
     docs = []
-    
+
     for p in sorted(corpus_dir.glob("*.md")):
         content = p.read_text(encoding="utf-8")
         lines = content.splitlines()
         title = lines[0].replace("#", "").strip() if lines else p.stem
-        sections = [l.replace("##", "").strip() for l in lines if l.startswith("## ")]
+        sections = [line.replace("##", "").strip() for line in lines if line.startswith("## ")]
         chunk_count = sum(1 for c in retriever.index.chunks if c.doc_id == p.stem)
-        
+
         category = "Field Service"
         if any(k in p.stem for k in ["workshop", "venue", "catering", "cancellation"]):
             category = "Workshop & Events"
         elif "travel" in p.stem:
             category = "Corporate Travel"
-            
-        docs.append({
-            "doc_id": p.stem,
-            "filename": p.name,
-            "title": title,
-            "category": category,
-            "sections": sections,
-            "chunk_count": chunk_count,
-            "word_count": len(content.split()),
-        })
-        
+
+        docs.append(
+            {
+                "doc_id": p.stem,
+                "filename": p.name,
+                "title": title,
+                "category": category,
+                "sections": sections,
+                "chunk_count": chunk_count,
+                "word_count": len(content.split()),
+            }
+        )
+
     return {
         "total_documents": len(docs),
         "total_chunks": len(retriever.index.chunks),
@@ -503,7 +543,7 @@ def get_corpus_document(doc_id: str):
     """Returns full content and indexed chunks for a single document."""
     retriever = _get_retriever()
     corpus_dir = Path(os.getenv("CORPUS_PATH", "./data/corpus"))
-    
+
     file_path = corpus_dir / f"{doc_id}.md"
     if not file_path.exists():
         matches = list(corpus_dir.glob(f"{doc_id}*.md"))
@@ -511,7 +551,7 @@ def get_corpus_document(doc_id: str):
             file_path = matches[0]
         else:
             raise HTTPException(404, f"Document '{doc_id}' not found")
-            
+
     content = file_path.read_text(encoding="utf-8")
     doc_chunks = [
         {
@@ -522,7 +562,7 @@ def get_corpus_document(doc_id: str):
         for c in retriever.index.chunks
         if c.doc_id == file_path.stem
     ]
-    
+
     return {
         "doc_id": file_path.stem,
         "filename": file_path.name,
@@ -550,6 +590,7 @@ def get_chunk_detail(chunk_id: str):
 def run_evaluation():
     """Runs automated verification across the 6 scoring gates."""
     from tests.eval_gates import run_offline_evaluation
+
     results = run_offline_evaluation()
     return {
         "timestamp_s": time.time(),
@@ -607,8 +648,10 @@ if _dashboard_dir.is_dir():
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main():
     import uvicorn
+
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
     print(f"[PRISM] Starting server on {host}:{port}")
@@ -617,4 +660,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

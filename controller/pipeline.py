@@ -9,16 +9,15 @@ the full pipeline:
 Each stage logs telemetry. The pipeline never calls external APIs
 except through shared.llm, and never accesses data outside the corpus.
 """
+
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from controller.retrieval_controller import RetrievalController
 from controller.decomposer import decompose
 from controller.stream_simulator import TranscriptChunk
-from ledger.claim_ledger import ClaimLedger
 from ledger.synthesizer import synthesize_claims
 from shared.schemas import (
     AnswerSnapshot,
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
 @dataclass
 class PipelineResult:
     """Result of processing a single transcript chunk."""
+
     decision: ControllerDecision
     sub_queries: list[SubQuery] = field(default_factory=list)
     retrieved_chunks: dict[str, list[Chunk]] = field(default_factory=dict)
@@ -164,7 +164,9 @@ class Pipeline:
         all_chunks: dict[str, list[Chunk]] = {}
         for sq in sub_queries:
             t_retrieve = time.time()
-            trigger = "provisional" if decision.reason == "provisional_entity_match" else "sub_intent"
+            trigger = (
+                "provisional" if decision.reason == "provisional_entity_match" else "sub_intent"
+            )
             session.logger.retrieval_started(
                 query=sq.search_query,
                 trigger=trigger,
@@ -244,9 +246,7 @@ class Pipeline:
         affected_intents = [sq.sub_intent for sq in sub_queries]
 
         # If decomposer doesn't match existing intents, try to match
-        existing_intents = {
-            c.sub_intent for c in session.ledger.get_active_claims()
-        }
+        existing_intents = {c.sub_intent for c in session.ledger.get_active_claims()}
         matched_intents = [i for i in affected_intents if i in existing_intents]
 
         # If no direct match, search across all existing intents
@@ -319,4 +319,3 @@ class Pipeline:
         }
 
         return result
-

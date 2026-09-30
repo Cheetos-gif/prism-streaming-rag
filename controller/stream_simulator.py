@@ -12,6 +12,7 @@ Example (matches the brief):
     1.6s  "...the cancellation policy and the catering options."
     2.1s  [Utterance End]
 """
+
 from __future__ import annotations
 
 import time

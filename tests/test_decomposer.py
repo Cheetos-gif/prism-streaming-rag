@@ -1,29 +1,27 @@
 """Tests for controller/decomposer.py."""
-import pytest
 
 from controller.decomposer import (
-    decompose,
-    _likely_multi_intent,
-    _infer_intent_label,
     _clean_for_search,
+    _infer_intent_label,
+    _likely_multi_intent,
+    decompose,
 )
 
 
 class TestMultiIntentDetection:
     def test_obvious_multi_intent(self):
-        assert _likely_multi_intent(
-            "I need a venue and I need the cancellation policy and the catering options"
-        ) is True
+        assert (
+            _likely_multi_intent(
+                "I need a venue and I need the cancellation policy and the catering options"
+            )
+            is True
+        )
 
     def test_single_intent(self):
-        assert _likely_multi_intent(
-            "What is the capacity of Venue B?"
-        ) is False
+        assert _likely_multi_intent("What is the capacity of Venue B?") is False
 
     def test_multiple_questions(self):
-        assert _likely_multi_intent(
-            "What is the capacity? What about catering?"
-        ) is True
+        assert _likely_multi_intent("What is the capacity? What about catering?") is True
 
 
 class TestDecomposeRuleBased:
@@ -87,4 +85,3 @@ class TestCleanForSearch:
         result = _clean_for_search("Model 7 compressor knocking sound")
         assert "Model 7" in result
         assert "knocking" in result
-

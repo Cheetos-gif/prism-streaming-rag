@@ -7,6 +7,7 @@
 
 This is the central module in PRISM that interfaces with language models.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,8 +17,8 @@ import re
 import time
 from typing import Any
 
-from dotenv import load_dotenv
 import httpx
+from dotenv import load_dotenv
 
 try:
     from google.genai.errors import APIError, ClientError, ServerError
@@ -40,7 +41,7 @@ _client: Any = None
 
 def get_provider() -> str:
     """Determine the active LLM provider.
-    
+
     Order of resolution:
     1. If _client is explicitly set (mock/test override) -> 'gemini'
     2. Explicit MODEL_PROVIDER env var ('groq', 'ollama', 'openrouter', 'gemini', 'local')
@@ -83,6 +84,7 @@ def get_client() -> Any:
         )
 
     from google import genai
+
     _client = genai.Client(api_key=api_key)
     return _client
 
@@ -103,7 +105,7 @@ def get_model_name(override: str | None = None) -> str:
     """Resolve the active model name based on provider and env settings."""
     if override:
         return override
-    
+
     provider = get_provider()
     if provider == "groq":
         return os.getenv("GROQ_MODEL") or DEFAULT_GROQ_MODEL
@@ -111,7 +113,7 @@ def get_model_name(override: str | None = None) -> str:
         return os.getenv("OLLAMA_MODEL") or DEFAULT_OLLAMA_MODEL
     elif provider == "openrouter":
         return os.getenv("OPENROUTER_MODEL") or DEFAULT_OPENROUTER_MODEL
-    
+
     return os.getenv("GEMINI_MODEL") or DEFAULT_MODEL
 
 
@@ -155,23 +157,25 @@ def _is_transient_error(err: Exception) -> bool:
         if code in (429, 408):
             return True
         status = str(getattr(err, "status", "") or "").upper()
-        if any(term in status for term in ("RESOURCE_EXHAUSTED", "UNAVAILABLE", "DEADLINE_EXCEEDED")):
-            return True
-        return False
+        return any(
+            term in status for term in ("RESOURCE_EXHAUSTED", "UNAVAILABLE", "DEADLINE_EXCEEDED")
+        )
     if isinstance(err, APIError):
         code = getattr(err, "code", None)
         if code in (429, 408, 500, 502, 503, 504):
             return True
         status = str(getattr(err, "status", "") or "").upper()
-        if any(term in status for term in ("RESOURCE_EXHAUSTED", "UNAVAILABLE", "DEADLINE_EXCEEDED")):
-            return True
-        return False
+        return any(
+            term in status for term in ("RESOURCE_EXHAUSTED", "UNAVAILABLE", "DEADLINE_EXCEEDED")
+        )
     err_str = str(err).lower()
-    if any(k in err_str for k in ("429", "rate limit", "quota", "timeout", "503", "502", "unavailable")):
+    if any(
+        k in err_str for k in ("429", "rate limit", "quota", "timeout", "503", "502", "unavailable")
+    ):
         return True
-    if isinstance(err, (httpx.RequestError, ConnectionError, TimeoutError, OSError, json.JSONDecodeError)):
-        return True
-    return False
+    return isinstance(
+        err, (httpx.RequestError, ConnectionError, TimeoutError, OSError, json.JSONDecodeError)
+    )
 
 
 def _generate_openai_compatible(
@@ -214,7 +218,9 @@ def _generate_openai_compatible(
                 content = data["choices"][0]["message"]["content"] or ""
                 logger.info(
                     "Free LLM API call completed: provider_url=%s, model=%s, latency_ms=%.2f",
-                    base_url, model, latency_ms
+                    base_url,
+                    model,
+                    latency_ms,
                 )
                 return content
         except Exception as exc:
@@ -232,6 +238,7 @@ def _generate_local_fallback(prompt: str, is_json: bool = False) -> str | dict |
             match = re.search(r'"([^"]+)"', prompt)
             utterance = match.group(1) if match else prompt
             from controller.decomposer import _rule_based_decompose
+
             subs = _rule_based_decompose(utterance)
             return [
                 {
@@ -248,7 +255,7 @@ def _generate_local_fallback(prompt: str, is_json: bool = False) -> str | dict |
             source_tag = source_match.group(1) if source_match else "Doc_01 §1"
             text_match = re.search(r'text:\s*"([^"]+)"', prompt)
             snippet = text_match.group(1)[:200] if text_match else "Fact verified from corpus."
-            
+
             return [
                 {
                     "text": f"{snippet} [{source_tag}]",
@@ -327,6 +334,7 @@ def generate(
     client = get_client()
 
     from google.genai import types
+
     config = types.GenerateContentConfig(
         temperature=temperature,
         system_instruction=system_instruction if system_instruction else None,
@@ -373,7 +381,7 @@ def generate(
                 latency_ms,
                 exc,
             )
-            raise last_error
+            raise last_error from exc
 
     if last_error:
         raise last_error
@@ -454,6 +462,7 @@ def generate_json(
     client = get_client()
 
     from google.genai import types
+
     config = types.GenerateContentConfig(
         temperature=temperature,
         system_instruction=system_instruction if system_instruction else None,
@@ -510,7 +519,7 @@ def generate_json(
                 latency_ms,
                 exc,
             )
-            raise last_error
+            raise last_error from exc
 
     if last_error:
         raise last_error
@@ -518,13 +527,13 @@ def generate_json(
 
 
 __all__ = [
+    "DEFAULT_GROQ_MODEL",
+    "DEFAULT_MODEL",
     "generate",
     "generate_json",
     "get_client",
-    "set_client",
-    "reset_client",
     "get_model_name",
     "get_provider",
-    "DEFAULT_MODEL",
-    "DEFAULT_GROQ_MODEL",
+    "reset_client",
+    "set_client",
 ]

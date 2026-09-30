@@ -9,13 +9,12 @@ Holds everything needed to process a streaming conversation:
 
 Session-bound: no cross-session persistence, no user tracking.
 """
+
 from __future__ import annotations
 
 import time
 import uuid
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from controller.retrieval_controller import RetrievalController
 from ledger.claim_ledger import ClaimLedger
@@ -47,13 +46,13 @@ class Session:
 
     def append_transcript(self, timestamp_s: float, text: str) -> None:
         """Record a transcript chunk."""
-        self.transcript_chunks.append({
-            "timestamp_s": timestamp_s,
-            "text": text,
-        })
-        self.full_transcript = " ".join(
-            chunk["text"] for chunk in self.transcript_chunks
+        self.transcript_chunks.append(
+            {
+                "timestamp_s": timestamp_s,
+                "text": text,
+            }
         )
+        self.full_transcript = " ".join(chunk["text"] for chunk in self.transcript_chunks)
         self.logger.log(
             "transcript_chunk",
             timestamp_s=timestamp_s,
@@ -90,4 +89,3 @@ class Session:
                 "uncertainty": answer.uncertainty,
             },
         }
-

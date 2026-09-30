@@ -1,4 +1,5 @@
 """Tests for FastAPI endpoints in controller/main.py."""
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,7 +22,9 @@ def test_health_endpoint(client):
 def test_root_redirects_to_dashboard(client):
     res = client.get("/", follow_redirects=False)
     assert res.status_code in (302, 307)
-    assert res.headers["location"] == "/dashboard"
+    # The UI is mounted at /dashboard/, so redirecting straight there avoids the
+    # extra 307 the StaticFiles mount would issue for /dashboard.
+    assert res.headers["location"] == "/dashboard/"
 
 
 def test_scenarios_endpoint(client):
@@ -76,4 +79,3 @@ def test_direct_search_endpoint(client):
     assert len(data["results"]) <= 3
     assert len(data["results"]) > 0
     assert "score" in data["results"][0]
-

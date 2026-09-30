@@ -13,14 +13,12 @@ Design principle: DON'T over-fragment.
 Uses Gemini for decomposition with a rule-based fast-path for obviously
 single-intent utterances.
 """
+
 from __future__ import annotations
 
-import json
 import re
-from typing import Sequence
 
 from shared.schemas import SubQuery
-
 
 # ---------------------------------------------------------------------------
 # Fast-path heuristic: skip LLM for obviously single-intent utterances
@@ -79,12 +77,13 @@ Output: [
 
 
 def _build_prompt(utterance: str) -> str:
-    return f"Decompose this utterance into independent sub-queries:\n\n\"{utterance}\""
+    return f'Decompose this utterance into independent sub-queries:\n\n"{utterance}"'
 
 
 # ---------------------------------------------------------------------------
 # Main decomposer
 # ---------------------------------------------------------------------------
+
 
 def decompose(utterance: str, use_llm: bool = True) -> list[SubQuery]:
     """Decompose an utterance into one or more SubQuery objects.
@@ -150,11 +149,13 @@ def _llm_decompose(utterance: str) -> list[SubQuery]:
     sub_queries = []
     for item in result:
         if isinstance(item, dict) and "sub_intent" in item and "search_query" in item:
-            sub_queries.append(SubQuery(
-                sub_intent=item["sub_intent"],
-                search_query=item["search_query"],
-                original_span=item.get("original_span", ""),
-            ))
+            sub_queries.append(
+                SubQuery(
+                    sub_intent=item["sub_intent"],
+                    search_query=item["search_query"],
+                    original_span=item.get("original_span", ""),
+                )
+            )
 
     return sub_queries if sub_queries else [_single_subquery(utterance)]
 
@@ -194,6 +195,7 @@ def _rule_based_decompose(utterance: str) -> list[SubQuery]:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _infer_intent_label(text: str) -> str:
     """Generate a snake_case intent label from text."""
@@ -245,4 +247,3 @@ def _clean_for_search(text: str) -> str:
     # Remove leading/trailing punctuation
     cleaned = cleaned.strip(".,;:!?")
     return cleaned if cleaned else text
-

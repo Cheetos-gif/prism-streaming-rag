@@ -15,6 +15,7 @@ the scenario the ledger's versioning logic exists to handle.
 Usage:
     python scripts/generate_mock_events.py [output_path]
 """
+
 from __future__ import annotations
 
 import sys
@@ -22,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from telemetry.logger import TelemetryLogger  # noqa: E402
+from telemetry.logger import TelemetryLogger
 
 DEFAULT_OUTPUT_PATH = Path("logs") / "mock_run.jsonl"
 
@@ -102,7 +103,9 @@ def generate(output_path: Path = DEFAULT_OUTPUT_PATH) -> Path:
     for i, sub in enumerate(sub_intents):
         logger.retrieval_started(query=sub["query"], trigger="sub_intent", timestamp_s=t)
         chunk_ids = [f"chunk_{sub['sub_intent']}_{j}" for j in range(1, 3)]
-        logger.retrieval_completed(query=sub["query"], chunk_ids=chunk_ids, latency_ms=140.0 + i * 15)
+        logger.retrieval_completed(
+            query=sub["query"], chunk_ids=chunk_ids, latency_ms=140.0 + i * 15
+        )
         claim_id = f"claim_v1_{sub['sub_intent']}"
         claim_ids.append(claim_id)
         logger.log(
@@ -134,7 +137,9 @@ def generate(output_path: Path = DEFAULT_OUTPUT_PATH) -> Path:
     )
 
     refine_query = "workshop venue Pune 50 people"
-    logger.retrieval_started(query=refine_query, trigger="constraint_update", timestamp_s=late_t + 0.05)
+    logger.retrieval_started(
+        query=refine_query, trigger="constraint_update", timestamp_s=late_t + 0.05
+    )
     refine_chunk_ids = ["chunk_venue_capacity_3", "chunk_venue_capacity_4"]
     logger.retrieval_completed(query=refine_query, chunk_ids=refine_chunk_ids, latency_ms=132.0)
 

@@ -1,9 +1,27 @@
+# Environment
 .env
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Virtualenvs (make venv)
 .venv/
+venv/
+
+# Corpus: the markdown documents are tracked, other files are not
 data/corpus/*
-!data/corpus/.gitkeep
 !data/corpus/*.md
-logs/session_*.jsonl
-logs/run_*.jsonl
+!data/corpus/.gitkeep
+
+# Generated telemetry logs (logs/mock_run.jsonl is a tracked fixture)
+logs/*.jsonl
+!logs/mock_run.jsonl
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

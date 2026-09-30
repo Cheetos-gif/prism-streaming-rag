@@ -9,14 +9,12 @@ uses Gemini to produce claim text that:
 
 The output is a list of Claim objects ready for the ClaimLedger.
 """
+
 from __future__ import annotations
 
-import json
 import re
-from typing import Sequence
 
 from shared.schemas import Chunk, Claim
-
 
 _SYSTEM_INSTRUCTION = """\
 You are a factual answer generator for a retrieval-augmented generation system.
@@ -45,9 +43,9 @@ Output:
 def _build_prompt(sub_intent: str, chunks: list[Chunk], context: str = "") -> str:
     """Build the synthesis prompt with evidence chunks."""
     chunk_text = "\n\n".join(
-        f"chunk_id: \"{c.chunk_id}\", source: \"Doc_{c.doc_id} §{c.section}\", "
+        f'chunk_id: "{c.chunk_id}", source: "Doc_{c.doc_id} §{c.section}", '
         f"score: {c.score:.3f}\n"
-        f"text: \"{c.text[:500]}\""
+        f'text: "{c.text[:500]}"'
         for c in chunks
     )
 
@@ -87,14 +85,16 @@ def synthesize_claims(
         Grounded claim objects ready for the ledger.
     """
     if not chunks:
-        return [Claim(
-            id=f"claim_v{version}_{sub_intent}",
-            text=f"Insufficient evidence in the retrieved corpus for {sub_intent.replace('_', ' ')}.",
-            chunk_ids=[],
-            sub_intent=sub_intent,
-            version=version,
-            status="unverified",
-        )]
+        return [
+            Claim(
+                id=f"claim_v{version}_{sub_intent}",
+                text=f"Insufficient evidence in the retrieved corpus for {sub_intent.replace('_', ' ')}.",
+                chunk_ids=[],
+                sub_intent=sub_intent,
+                version=version,
+                status="unverified",
+            )
+        ]
 
     if not use_llm:
         return _template_synthesize(sub_intent, chunks, version)
@@ -139,14 +139,16 @@ def _llm_synthesize(
         if i > 0:
             claim_id += f"_{i}"
 
-        claims.append(Claim(
-            id=claim_id,
-            text=text,
-            chunk_ids=chunk_ids if isinstance(chunk_ids, list) else [],
-            sub_intent=sub_intent,
-            version=version,
-            status="grounded" if is_grounded else "unverified",
-        ))
+        claims.append(
+            Claim(
+                id=claim_id,
+                text=text,
+                chunk_ids=chunk_ids if isinstance(chunk_ids, list) else [],
+                sub_intent=sub_intent,
+                version=version,
+                status="grounded" if is_grounded else "unverified",
+            )
+        )
 
     return claims if claims else _template_synthesize(sub_intent, chunks, version)
 
@@ -163,7 +165,7 @@ def _template_synthesize(
     """
     top_chunk = chunks[0]
     # Extract first meaningful sentence from the chunk
-    sentences = re.split(r'(?<=[.!?])\s+', top_chunk.text.strip())
+    sentences = re.split(r"(?<=[.!?])\s+", top_chunk.text.strip())
     best_sentence = ""
     for s in sentences:
         s = s.strip()
@@ -178,12 +180,13 @@ def _template_synthesize(
 
     chunk_ids = [c.chunk_id for c in chunks[:3]]  # cite top 3
 
-    return [Claim(
-        id=f"claim_v{version}_{sub_intent}",
-        text=claim_text,
-        chunk_ids=chunk_ids,
-        sub_intent=sub_intent,
-        version=version,
-        status="grounded",
-    )]
-
+    return [
+        Claim(
+            id=f"claim_v{version}_{sub_intent}",
+            text=claim_text,
+            chunk_ids=chunk_ids,
+            sub_intent=sub_intent,
+            version=version,
+            status="grounded",
+        )
+    ]

@@ -1,13 +1,14 @@
 """Unit tests for shared/llm.py."""
+
 from __future__ import annotations
 
 import json
 import logging
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from google.genai.errors import ClientError, ServerError
-import httpx
 
 from shared import llm
 
@@ -51,7 +52,9 @@ def test_generate_success(monkeypatch, caplog):
     llm.set_client(mock_client)
 
     with caplog.at_level(logging.INFO):
-        result = llm.generate("Summarize this document...", system_instruction="Be concise", temperature=0.3)
+        result = llm.generate(
+            "Summarize this document...", system_instruction="Be concise", temperature=0.3
+        )
 
     assert result == "This is a summary."
     mock_client.models.generate_content.assert_called_once()
@@ -64,7 +67,10 @@ def test_generate_success(monkeypatch, caplog):
 
     # Check logging
     log_messages = [rec.message for rec in caplog.records]
-    assert any("prompt_len=" in msg and "response_len=" in msg and "latency_ms=" in msg for msg in log_messages)
+    assert any(
+        "prompt_len=" in msg and "response_len=" in msg and "latency_ms=" in msg
+        for msg in log_messages
+    )
 
 
 def test_generate_json_success_dict(monkeypatch):
@@ -93,7 +99,7 @@ def test_generate_json_success_list_with_markdown_fence(monkeypatch):
 
     mock_client = MagicMock()
     mock_response = MagicMock()
-    mock_response.text = "```json\n[\"item1\", \"item2\", \"item3\"]\n```"
+    mock_response.text = '```json\n["item1", "item2", "item3"]\n```'
     mock_client.models.generate_content.return_value = mock_response
 
     llm.set_client(mock_client)
@@ -126,7 +132,9 @@ def test_retry_on_transient_server_error(monkeypatch, caplog):
     mock_response = MagicMock()
     mock_response.text = "Recovered response"
 
-    server_err = ServerError(503, {"error": {"code": 503, "message": "Service unavailable", "status": "UNAVAILABLE"}})
+    server_err = ServerError(
+        503, {"error": {"code": 503, "message": "Service unavailable", "status": "UNAVAILABLE"}}
+    )
     mock_client.models.generate_content.side_effect = [server_err, mock_response]
 
     llm.set_client(mock_client)
@@ -147,7 +155,9 @@ def test_retry_on_transient_rate_limit(monkeypatch, caplog):
     mock_response = MagicMock()
     mock_response.text = '{"status": "ok"}'
 
-    rate_limit_err = ClientError(429, {"error": {"code": 429, "message": "Quota exceeded", "status": "RESOURCE_EXHAUSTED"}})
+    rate_limit_err = ClientError(
+        429, {"error": {"code": 429, "message": "Quota exceeded", "status": "RESOURCE_EXHAUSTED"}}
+    )
     mock_client.models.generate_content.side_effect = [rate_limit_err, mock_response]
 
     llm.set_client(mock_client)
@@ -180,7 +190,9 @@ def test_persistent_client_error_not_retried(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
 
     mock_client = MagicMock()
-    bad_request_err = ClientError(400, {"error": {"code": 400, "message": "Bad request", "status": "INVALID_ARGUMENT"}})
+    bad_request_err = ClientError(
+        400, {"error": {"code": 400, "message": "Bad request", "status": "INVALID_ARGUMENT"}}
+    )
     mock_client.models.generate_content.side_effect = bad_request_err
 
     llm.set_client(mock_client)
@@ -196,7 +208,9 @@ def test_persistent_transient_error_fails_after_retry(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
 
     mock_client = MagicMock()
-    server_err = ServerError(500, {"error": {"code": 500, "message": "Internal error", "status": "INTERNAL"}})
+    server_err = ServerError(
+        500, {"error": {"code": 500, "message": "Internal error", "status": "INTERNAL"}}
+    )
     mock_client.models.generate_content.side_effect = server_err
 
     llm.set_client(mock_client)
@@ -246,7 +260,9 @@ def test_free_groq_mode_mock_call(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "gsk_mock_key")
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
-    with patch.object(llm, "_generate_openai_compatible", return_value='{"groq_decomposed": true}') as mock_call:
+    with patch.object(
+        llm, "_generate_openai_compatible", return_value='{"groq_decomposed": true}'
+    ) as mock_call:
         res = llm.generate_json("Decompose this prompt")
         assert res == {"groq_decomposed": True}
         mock_call.assert_called_once()

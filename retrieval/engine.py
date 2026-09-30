@@ -1,14 +1,15 @@
 """
 Hybrid retriever for combining BM25 and dense embedding search.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
 
 import numpy as np
 
-from shared.schemas import Chunk, SubQuery
 from retrieval.indexer import CorpusIndex, tokenize
+from shared.schemas import Chunk, SubQuery
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -27,6 +28,7 @@ class HybridRetriever:
     """
     Retrieval engine that combines BM25 and dense embeddings with Reciprocal Rank Fusion.
     """
+
     def __init__(self, index: CorpusIndex):
         self.index = index
 
@@ -39,37 +41,41 @@ class HybridRetriever:
 
         # BM25 Search
         tokenized_query = tokenize(query)
-        bm25_scores = self.index.bm25.get_scores(tokenized_query) if self.index.bm25 else np.zeros(len(self.index.chunks))
-        
+        bm25_scores = (
+            self.index.bm25.get_scores(tokenized_query)
+            if self.index.bm25
+            else np.zeros(len(self.index.chunks))
+        )
+
         # Dense Search
         query_embedding = self.index.model.encode(query, convert_to_numpy=True)
         dense_scores = cosine_similarity(self.index.embeddings, query_embedding)
-        
+
         # Rank both
         bm25_ranks = np.argsort(bm25_scores)[::-1]
         dense_ranks = np.argsort(dense_scores)[::-1]
-        
+
         rrf_k = 60
         rrf_scores: dict[int, float] = defaultdict(float)
-        
+
         for rank, chunk_idx in enumerate(bm25_ranks):
             rrf_scores[chunk_idx] += 1.0 / (rrf_k + rank + 1)
-            
+
         for rank, chunk_idx in enumerate(dense_ranks):
             rrf_scores[chunk_idx] += 1.0 / (rrf_k + rank + 1)
-            
+
         sorted_indices = sorted(rrf_scores.keys(), key=lambda i: rrf_scores[i], reverse=True)
-        
+
         results: list[Chunk] = []
         seen: set[str] = set()
         for idx in sorted_indices:
             if len(results) >= top_k:
                 break
-                
+
             chunk_record = self.index.chunks[idx]
             if chunk_record.chunk_id in seen:
                 continue
-                
+
             seen.add(chunk_record.chunk_id)
             results.append(
                 Chunk(
@@ -78,10 +84,10 @@ class HybridRetriever:
                     text=chunk_record.text,
                     score=float(rrf_scores[idx]),
                     chunk_id=chunk_record.chunk_id,
-                    sub_intent=None
+                    sub_intent=None,
                 )
             )
-            
+
         return results
 
     def search_multi(self, queries: list[SubQuery], top_k: int = 5) -> dict[str, list[Chunk]]:

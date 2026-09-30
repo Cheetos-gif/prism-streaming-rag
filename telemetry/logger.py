@@ -8,6 +8,7 @@ to serialize events and read them back.
 
 Stdlib only: json, time, pathlib.
 """
+
 from __future__ import annotations
 
 import json
@@ -80,7 +81,7 @@ class TelemetryLogger:
     def close(self) -> None:
         self._file.close()
 
-    def __enter__(self) -> "TelemetryLogger":
+    def __enter__(self) -> TelemetryLogger:
         return self
 
     def __exit__(self, *exc_info: object) -> None:

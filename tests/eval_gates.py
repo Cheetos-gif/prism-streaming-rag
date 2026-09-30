@@ -13,18 +13,16 @@ Usage:
     python -m tests.eval_gates                  # run all gates
     python -m tests.eval_gates --gate G2 G4     # run specific gates
 """
+
 from __future__ import annotations
 
-import json
 import sys
-import time
+from dataclasses import dataclass
 from pathlib import Path
-from dataclasses import dataclass, field
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from controller.stream_simulator import StreamSimulator, TranscriptChunk
 from telemetry.logger import read_events
 
 
@@ -80,6 +78,7 @@ SCENARIO_SINGLE_INTENT = [
 # Gate evaluators
 # ---------------------------------------------------------------------------
 
+
 def eval_g2_early_retrieval(events: list[dict]) -> GateResult:
     """G2: Early Retrieval — retrieval commences before utterance completion.
 
@@ -95,25 +94,21 @@ def eval_g2_early_retrieval(events: list[dict]) -> GateResult:
             break  # first one
 
     if utterance_end_ts is None:
-        return GateResult("G2", False, 0.0, 0.80,
-                          "No utterance_end event found")
+        return GateResult("G2", False, 0.0, 0.80, "No utterance_end event found")
 
     # Check if ANY retrieval started before the first utterance_end
     early_retrievals = [
-        ev for ev in events
+        ev
+        for ev in events
         if ev.get("event_type") == "retrieval_started"
         and ev.get("timestamp_s", float("inf")) < utterance_end_ts
-    ]
-
-    total_retrievals = [
-        ev for ev in events
-        if ev.get("event_type") == "retrieval_started"
     ]
 
     has_early = len(early_retrievals) > 0
     # Also check for provisional triggers in controller decisions
     provisional_decisions = [
-        ev for ev in events
+        ev
+        for ev in events
         if ev.get("event_type") == "controller_decision"
         and ev.get("reason") == "provisional_entity_match"
         and ev.get("timestamp_s", float("inf")) < utterance_end_ts
@@ -121,9 +116,14 @@ def eval_g2_early_retrieval(events: list[dict]) -> GateResult:
 
     score = 1.0 if (has_early or len(provisional_decisions) > 0) else 0.0
 
-    return GateResult("G2", score >= 0.80, score, 0.80,
-                      f"{len(early_retrievals)} retrieval(s) before utterance_end, "
-                      f"{len(provisional_decisions)} provisional decisions")
+    return GateResult(
+        "G2",
+        score >= 0.80,
+        score,
+        0.80,
+        f"{len(early_retrievals)} retrieval(s) before utterance_end, "
+        f"{len(provisional_decisions)} provisional decisions",
+    )
 
 
 def eval_g3_multi_intent(events: list[dict]) -> GateResult:
@@ -141,8 +141,13 @@ def eval_g3_multi_intent(events: list[dict]) -> GateResult:
 
     score = multi_intent_count / len(decomp_events) if decomp_events else 0.0
 
-    return GateResult("G3", score >= 0.70, score, 0.70,
-                      f"{multi_intent_count}/{len(decomp_events)} had 2+ sub-intents")
+    return GateResult(
+        "G3",
+        score >= 0.70,
+        score,
+        0.70,
+        f"{multi_intent_count}/{len(decomp_events)} had 2+ sub-intents",
+    )
 
 
 def eval_g4_grounding(events: list[dict]) -> GateResult:
@@ -152,12 +157,16 @@ def eval_g4_grounding(events: list[dict]) -> GateResult:
     if not claim_events:
         return GateResult("G4", False, 0.0, 0.85, "No claim events found")
 
-    grounded = sum(1 for e in claim_events
-                   if e.get("status") == "grounded" and e.get("chunk_ids"))
+    grounded = sum(1 for e in claim_events if e.get("status") == "grounded" and e.get("chunk_ids"))
     score = grounded / len(claim_events)
 
-    return GateResult("G4", score >= 0.85, score, 0.85,
-                      f"{grounded}/{len(claim_events)} claims grounded with citations")
+    return GateResult(
+        "G4",
+        score >= 0.85,
+        score,
+        0.85,
+        f"{grounded}/{len(claim_events)} claims grounded with citations",
+    )
 
 
 def eval_g5_refinement(events: list[dict]) -> GateResult:
@@ -165,14 +174,16 @@ def eval_g5_refinement(events: list[dict]) -> GateResult:
     version_events = [e for e in events if e.get("event_type") == "answer_version"]
 
     if len(version_events) < 2:
-        return GateResult("G5", False, 0.0, 1.0,
-                          f"Only {len(version_events)} answer versions (need >= 2 for refinement)")
+        return GateResult(
+            "G5",
+            False,
+            0.0,
+            1.0,
+            f"Only {len(version_events)} answer versions (need >= 2 for refinement)",
+        )
 
     # Check that later versions supersede earlier claims
-    has_supersession = any(
-        len(e.get("claims_superseded", [])) > 0
-        for e in version_events
-    )
+    has_supersession = any(len(e.get("claims_superseded", [])) > 0 for e in version_events)
 
     # Check that not all claims were re-created (i.e., refinement was surgical)
     v1_claims = set()
@@ -187,8 +198,13 @@ def eval_g5_refinement(events: list[dict]) -> GateResult:
     surgical = len(v2_claims) < len(v1_claims) if v1_claims else True
 
     passed = has_supersession and surgical
-    return GateResult("G5", passed, 1.0 if passed else 0.0, 1.0,
-                      f"Supersession: {has_supersession}, Surgical: {surgical}")
+    return GateResult(
+        "G5",
+        passed,
+        1.0 if passed else 0.0,
+        1.0,
+        f"Supersession: {has_supersession}, Surgical: {surgical}",
+    )
 
 
 def eval_g6_telemetry(events: list[dict]) -> GateResult:
@@ -199,8 +215,12 @@ def eval_g6_telemetry(events: list[dict]) -> GateResult:
     complete = 0
     issues = []
     required_event_types = {
-        "transcript_chunk", "controller_decision", "retrieval_started",
-        "retrieval_completed", "claim_drafted", "answer_version",
+        "transcript_chunk",
+        "controller_decision",
+        "retrieval_started",
+        "retrieval_completed",
+        "claim_drafted",
+        "answer_version",
     }
     seen_types = set()
 
@@ -211,7 +231,9 @@ def eval_g6_telemetry(events: list[dict]) -> GateResult:
             complete += 1
             seen_types.add(ev["event_type"])
         else:
-            issues.append(f"Event {i}: missing {'timestamp_s' if not has_timestamp else 'event_type'}")
+            issues.append(
+                f"Event {i}: missing {'timestamp_s' if not has_timestamp else 'event_type'}"
+            )
 
     coverage = complete / len(events)
     missing_types = required_event_types - seen_types
@@ -230,12 +252,14 @@ def eval_g6_telemetry(events: list[dict]) -> GateResult:
 # Runner
 # ---------------------------------------------------------------------------
 
+
 def run_offline_evaluation() -> list[GateResult]:
     """Run gate evaluation using the mock telemetry log."""
     log_path = Path("logs/mock_run.jsonl")
     if not log_path.exists():
         # Generate it
         from scripts.generate_mock_events import generate
+
         generate(log_path)
 
     events = read_events(log_path)

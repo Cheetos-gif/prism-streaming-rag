@@ -9,12 +9,12 @@ Approach:
   2. For each assertion, check if any cited chunk contains supporting text
   3. Flag claims where an assertion has no chunk support
 """
+
 from __future__ import annotations
 
 import re
-from typing import Sequence
 
-from shared.schemas import Claim, Chunk, ChunkRecord, GroundingResult
+from shared.schemas import Chunk, ChunkRecord, Claim, GroundingResult
 
 
 def verify_claim(
@@ -105,6 +105,7 @@ def grounding_score(results: list[GroundingResult]) -> float:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _extract_assertions(claim_text: str) -> list[str]:
     """Extract key factual phrases from a claim's text.
 
@@ -112,10 +113,10 @@ def _extract_assertions(claim_text: str) -> list[str]:
     or proper nouns — the things most likely to be hallucinated.
     """
     # Remove citation markers like [Doc_02 §3]
-    clean = re.sub(r'\[Doc_\w+\s*§\w+\]', '', claim_text)
+    clean = re.sub(r"\[Doc_\w+\s*§\w+\]", "", claim_text)
 
     # Split into sentences
-    sentences = re.split(r'(?<=[.!?])\s+', clean.strip())
+    sentences = re.split(r"(?<=[.!?])\s+", clean.strip())
 
     assertions: list[str] = []
     for sentence in sentences:
@@ -125,7 +126,7 @@ def _extract_assertions(claim_text: str) -> list[str]:
 
         # Extract number-bearing phrases (most falsifiable)
         number_phrases = re.findall(
-            r'(?:\w+\s+){0,3}\d+[\d,.]*\s*(?:\w+\s*){0,3}',
+            r"(?:\w+\s+){0,3}\d+[\d,.]*\s*(?:\w+\s*){0,3}",
             sentence,
         )
         assertions.extend(p.strip() for p in number_phrases if len(p.strip()) > 3)
@@ -148,27 +149,55 @@ def _assertion_supported(assertion: str, chunk_texts: list[str]) -> bool:
 
     # Extract significant keywords (3+ chars, not stop words)
     stop_words = {
-        "the", "and", "for", "are", "was", "were", "has", "have", "had",
-        "been", "will", "can", "may", "with", "from", "that", "this",
-        "not", "but", "its", "also", "into", "than", "then", "when",
-        "which", "each", "such", "must", "does", "more", "most",
+        "the",
+        "and",
+        "for",
+        "are",
+        "was",
+        "were",
+        "has",
+        "have",
+        "had",
+        "been",
+        "will",
+        "can",
+        "may",
+        "with",
+        "from",
+        "that",
+        "this",
+        "not",
+        "but",
+        "its",
+        "also",
+        "into",
+        "than",
+        "then",
+        "when",
+        "which",
+        "each",
+        "such",
+        "must",
+        "does",
+        "more",
+        "most",
     }
 
-    keywords = set(
-        w for w in re.findall(r'\b[a-z0-9]+\b', assertion_lower)
+    keywords = {
+        w
+        for w in re.findall(r"\b[a-z0-9]+\b", assertion_lower)
         if len(w) >= 3 and w not in stop_words
-    )
+    }
 
     if not keywords:
         return True  # nothing to verify
 
     # Check each chunk for keyword coverage
     for chunk_text in chunk_texts:
-        chunk_words = set(re.findall(r'\b[a-z0-9]+\b', chunk_text))
+        chunk_words = set(re.findall(r"\b[a-z0-9]+\b", chunk_text))
         overlap = keywords & chunk_words
         coverage = len(overlap) / len(keywords) if keywords else 1.0
         if coverage >= 0.5:  # at least 50% keyword overlap
             return True
 
     return False
-

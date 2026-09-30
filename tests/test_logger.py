@@ -1,4 +1,5 @@
 """Tests for telemetry/logger.py."""
+
 import json
 
 from telemetry.logger import TelemetryLogger, read_events
@@ -8,7 +9,9 @@ def test_logged_events_round_trip_through_read_events(tmp_path):
     log_path = tmp_path / "run.jsonl"
     logger = TelemetryLogger(log_path)
 
-    logger.retrieval_started(query="cancellation policy Pune", trigger="sub_intent", timestamp_s=0.8)
+    logger.retrieval_started(
+        query="cancellation policy Pune", trigger="sub_intent", timestamp_s=0.8
+    )
     written = logger.retrieval_completed(
         query="cancellation policy Pune",
         chunk_ids=["c1", "c2"],

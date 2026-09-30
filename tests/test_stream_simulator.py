@@ -1,4 +1,5 @@
 """Tests for controller/stream_simulator.py."""
+
 from controller.stream_simulator import (
     FIELD_SERVICE_SCRIPT,
     TRAVEL_WORKSHOP_SCRIPT,

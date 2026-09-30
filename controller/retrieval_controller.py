@@ -10,10 +10,10 @@ Evaluates incoming transcript chunks and makes one of four decisions:
 Design: heuristic-first for speed (<1ms), with optional LLM fallback
 for ambiguous cases. This means 80%+ of decisions are instantaneous.
 """
+
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from shared.schemas import ControllerDecision
@@ -212,4 +212,3 @@ class RetrievalController:
     def _is_refinement(text: str) -> bool:
         """Check if the text introduces a late constraint."""
         return bool(_REFINEMENT_PATTERNS.search(text))
-

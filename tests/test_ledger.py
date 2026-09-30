@@ -1,5 +1,4 @@
 """Tests for ledger/claim_ledger.py — the core differentiator."""
-import pytest
 
 from ledger.claim_ledger import ClaimLedger
 from shared.schemas import Claim
@@ -48,11 +47,13 @@ class TestAddClaims:
 class TestRefine:
     def test_refine_supersedes_affected_claims(self):
         ledger = ClaimLedger("test_session")
-        ledger.add_claims([
-            _make_claim("venue_capacity"),
-            _make_claim("cancellation_policy"),
-            _make_claim("catering_options"),
-        ])
+        ledger.add_claims(
+            [
+                _make_claim("venue_capacity"),
+                _make_claim("cancellation_policy"),
+                _make_claim("catering_options"),
+            ]
+        )
 
         plan = ledger.refine(
             constraint_text="actually 50 people not 30",
@@ -69,11 +70,13 @@ class TestRefine:
 
     def test_refine_preserves_unaffected_claims(self):
         ledger = ClaimLedger("test_session")
-        ledger.add_claims([
-            _make_claim("venue_capacity"),
-            _make_claim("cancellation_policy"),
-            _make_claim("catering_options"),
-        ])
+        ledger.add_claims(
+            [
+                _make_claim("venue_capacity"),
+                _make_claim("cancellation_policy"),
+                _make_claim("catering_options"),
+            ]
+        )
 
         ledger.refine(
             constraint_text="actually 50 people",
@@ -88,16 +91,18 @@ class TestRefine:
 
     def test_add_refined_claims_creates_new_version(self):
         ledger = ClaimLedger("test_session")
-        ledger.add_claims([
-            _make_claim("venue_capacity"),
-            _make_claim("cancellation_policy"),
-        ])
+        ledger.add_claims(
+            [
+                _make_claim("venue_capacity"),
+                _make_claim("cancellation_policy"),
+            ]
+        )
 
         plan = ledger.refine("50 people", ["venue_capacity"])
 
         new_claim = _make_claim("venue_capacity", version=2, text="Updated venue claim")
         new_claim.id = "claim_v2_venue_capacity"
-        snapshot = ledger.add_refined_claims([new_claim], plan.claims_to_supersede)
+        ledger.add_refined_claims([new_claim], plan.claims_to_supersede)
 
         assert ledger.version == 2
         # Active claims: new venue + old cancellation
@@ -111,10 +116,12 @@ class TestRefine:
 class TestCurrentAnswer:
     def test_current_answer_excludes_superseded(self):
         ledger = ClaimLedger("test_session")
-        ledger.add_claims([
-            _make_claim("venue_capacity"),
-            _make_claim("cancellation_policy"),
-        ])
+        ledger.add_claims(
+            [
+                _make_claim("venue_capacity"),
+                _make_claim("cancellation_policy"),
+            ]
+        )
 
         ledger.refine("50 people", ["venue_capacity"])
 
@@ -161,4 +168,3 @@ class TestHistory:
         assert len(history) == 2
         assert history[0].version == 1
         assert history[1].version == 2
-
