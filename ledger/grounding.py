@@ -209,19 +209,26 @@ def _assertion_supported(assertion: str, chunk_texts: list[str]) -> bool:
 # ---------------------------------------------------------------------------
 
 # Two out-of-corpus content words were the point at which the test set in
-# tests/test_evidence_coverage.py separates cleanly, and the measurement is why the
-# threshold is not a similarity: the dense cosine does NOT separate the sets (a
-# legitimate "zone A international per diem pre-approval" scores 0.459 while
-# "corporate policy for travelling to the moon" scores 0.454, so any cosine floor that
-# rejects one rejects the other). Vocabulary membership does:
+# tests/test_evidence_coverage.py separates — and the measurement is also why this is a
+# **reported signal and not a gate**. It was briefly wired to downgrade claims to
+# `unverified` and to warn the model in the synthesis prompt; that was reverted after two
+# live failures, both reproduced against the real model:
 #
-#   10 answerable questions   -> 0 or 1 out-of-corpus content word ("people", "cap")
-#    7 unanswerable questions -> 2 to 5 ("moon"/"travelling", "lunar"/"habitat"/"airlock",
-#                               "pizza"/"best", "quantum"/"computing", "sourdough"/"bread")
+#   1. "how long until a technician arrives when the machine is critical" and "what does the
+#      warranty say about using a different oil" are answerable, yet they carry two and
+#      three out-of-corpus words, so they were flagged and downgraded.
+#   2. With a sub-intent label the decomposer can produce (a generic one), the added prompt
+#      sentence made the model refuse answerable questions outright:
+#        old prompt + generic sub-intent -> grounded=true  ("cancellation refund tiers")
+#        new prompt + generic sub-intent -> grounded=false ("Insufficient evidence …")
+#        either prompt + specific sub-intent -> grounded=true
 #
-# The signal is imperfect (a question can legitimately use two words the corpus never
-# writes), which is why it only ever downgrades a claim to `unverified` — it is surfaced
-# as uncertainty, it never refuses to answer or drops evidence.
+# Sparse vocabulary is not evidence of an unanswerable question, and neither is the dense
+# cosine: a legitimate "zone A international per diem pre-approval" scores 0.459 while
+# "corporate policy for travelling to the moon" scores 0.454, so no floor separates them.
+# The terms are therefore logged (`evidence_coverage`) and nothing more. Surfacing
+# out-of-corpus questions as uncertainty is still an open problem; it needs a signal that
+# survives ordinary phrasing, which this corpus/vocabulary pair does not provide.
 DEFAULT_UNKNOWN_TERM_LIMIT = int(os.getenv("EVIDENCE_UNKNOWN_TERM_LIMIT", "2"))
 
 _QUERY_FUNCTION_WORDS = {
@@ -249,10 +256,16 @@ _QUERY_FUNCTION_WORDS = {
 
 
 def _content_terms(text: str) -> list[str]:
-    """Lowercase words of 3+ characters that carry subject matter."""
+    """Lowercase words of 3+ characters that carry subject matter.
+
+    Split on non-word characters, exactly as `retrieval.indexer.tokenize` does, so a
+    hyphenated word like "on-site" is compared as "on"+"site" — the corpus vocabulary is
+    built with that tokenizer, and comparing "on-site" against it reported a word as
+    missing when only the tokenization differed.
+    """
     return [
         word
-        for word in re.findall(r"[a-z0-9][a-z0-9_-]*", text.lower())
+        for word in re.split(r"\W+", text.lower())
         if len(word) >= 3 and word not in _QUERY_FUNCTION_WORDS
     ]
 

@@ -1,8 +1,13 @@
-"""Tests for the corpus-coverage signal and the uncertainty it produces.
+"""Tests for the corpus-coverage signal.
 
-Vocabulary membership, not vector similarity, is what separates "the corpus answers
-this" from "the corpus does not discuss this" — see the measurement in
-ledger/grounding.py. These tests pin both the signal and the behaviour it drives.
+This is a *reported* signal, not a gate. It was briefly wired to mark claims
+`unverified` and to warn the model in the synthesis prompt; that was reverted after it
+misread ordinary phrasing and the model, warned, refused to answer an answerable
+question (see the comment above `DEFAULT_UNKNOWN_TERM_LIMIT` in ledger/grounding.py).
+
+So these tests pin two things: the signal catches subject matter the corpus cannot
+discuss, and it also fires on legitimate English — which is exactly why it is not
+allowed to change an answer.
 """
 
 import pytest
@@ -14,22 +19,26 @@ from ledger.grounding import (
 )
 from retrieval.indexer import CorpusIndex
 
-ANSWERABLE = [
-    "CMP7-BRG-001 bearing cost and lead time",
-    "warranty response time for critical severity",
-    "what are the emergency shutdown triggers",
-    "Pune workshop venue capacity for 50 people",
-    "catering minimum order size and advance notice",
-    "cancellation refund tiers",
-    "tier 1 per diem and hotel cap",
-    "zone A international per diem pre-approval",
-]
 UNANSWERABLE = [
     "corporate policy for travelling to the moon",
     "what is the warranty coverage for a lunar habitat airlock module",
     "best pizza in Pune",
     "quantum computing error correction techniques",
     "recipe for sourdough bread",
+]
+
+ANSWERABLE_WITH_CORPUS_VOCABULARY = [
+    "cancellation refund tiers",
+    "catering minimum order size and advance notice",
+    "warranty response time for critical severity",
+    "run till failure policy for minor faults",
+]
+
+# Ordinary phrasing for answerable questions that the signal still flags. Kept as a
+# test so nobody wires this signal back into the answer path without seeing them.
+ANSWERABLE_BUT_FLAGGED = [
+    "how long until a technician arrives when the machine is critical",
+    "what does the warranty say about using a different oil",
 ]
 
 
@@ -43,21 +52,39 @@ def test_absent_subject_matter_is_named(vocabulary):
 
     assert "moon" in terms
     assert "travelling" in terms
-    # words the corpus does use stay out of the list
-    assert "policy" not in terms
-
-
-def test_answerable_questions_stay_under_the_limit(vocabulary):
-    for question in ANSWERABLE:
-        terms = out_of_corpus_terms(question, vocabulary)
-        assert len(terms) < DEFAULT_UNKNOWN_TERM_LIMIT, (question, terms)
-        assert not evidence_is_weak(terms), (question, terms)
+    assert "policy" not in terms, "words the corpus does use stay out of the list"
 
 
 def test_unanswerable_questions_exceed_the_limit(vocabulary):
     for question in UNANSWERABLE:
-        terms = out_of_corpus_terms(question, vocabulary)
-        assert evidence_is_weak(terms), (question, terms)
+        assert evidence_is_weak(out_of_corpus_terms(question, vocabulary)), question
+
+
+def test_hyphenated_words_are_split_like_the_corpus_vocabulary(vocabulary):
+    # The corpus vocabulary comes from retrieval.indexer.tokenize, which splits on
+    # non-word characters; comparing "on-site" against it reported a missing word when
+    # only the tokenization differed.
+    assert "site" in vocabulary and "on-site" not in vocabulary
+    assert "on-site" not in out_of_corpus_terms("on-site response time", vocabulary)
+    assert out_of_corpus_terms("on-site response time", vocabulary) == []
+
+
+def test_typical_corpus_phrasing_does_not_trip_the_limit(vocabulary):
+    for question in ANSWERABLE_WITH_CORPUS_VOCABULARY:
+        assert not evidence_is_weak(out_of_corpus_terms(question, vocabulary)), question
+
+
+def test_ordinary_phrasing_is_flagged_too_which_is_why_it_is_not_a_gate(vocabulary):
+    for question in ANSWERABLE_BUT_FLAGGED:
+        assert evidence_is_weak(out_of_corpus_terms(question, vocabulary)), (
+            f"{question!r} is answerable, yet the vocabulary signal calls it weak"
+        )
+
+
+def test_the_limit_is_configurable():
+    assert DEFAULT_UNKNOWN_TERM_LIMIT == 2
+    assert evidence_is_weak(["a", "b"], limit=2)
+    assert not evidence_is_weak(["a"], limit=2)
 
 
 def test_query_function_words_are_not_counted_as_missing(vocabulary):
@@ -66,32 +93,23 @@ def test_query_function_words_are_not_counted_as_missing(vocabulary):
     assert not (set(terms) & {"who", "what", "where"})
 
 
-def _claims_after_asking(client, question: str) -> dict:
+def test_answers_are_not_downgraded_by_the_signal(client):
+    """The regression this file exists for: a flagged question still gets its answer."""
     session_id = client.post("/session").json()["session_id"]
     client.post(
         f"/session/{session_id}/stream",
-        json={"timestamp_s": 0.0, "text": question, "is_final": False},
+        json={
+            "timestamp_s": 0.0,
+            "text": "how long until a technician arrives when the machine is critical",
+            "is_final": False,
+        },
     )
     client.post(f"/session/{session_id}/utterance_end")
-    return client.get(f"/session/{session_id}").json()
+    state = client.get(f"/session/{session_id}").json()
 
-
-def test_unanswerable_question_is_kept_as_uncertainty_not_as_a_grounded_fact(client):
-    state = _claims_after_asking(
-        client, "What is the warranty coverage for a lunar habitat airlock module?"
-    )
-    answer = state["answer"]
-
-    assert answer["claims"], "the pipeline still answers — it just flags the answer"
-    assert {c["status"] for c in answer["claims"]} == {"unverified"}
-    assert answer["uncertainty"], "the weak evidence has to show up in the snapshot"
-    assert all(c["chunk_ids"] for c in answer["claims"]), "citations are kept, not dropped"
-
-
-def test_answerable_question_stays_grounded(client):
-    state = _claims_after_asking(client, "What is the on-site response time for critical severity?")
-    answer = state["answer"]
-
-    assert answer["claims"]
-    assert {c["status"] for c in answer["claims"]} == {"grounded"}
-    assert answer["uncertainty"] == []
+    assert state["answer"]["claims"], "the answer is still produced"
+    assert {c["status"] for c in state["answer"]["claims"]} == {"grounded"}
+    assert any(
+        event.get("event_type") == "evidence_coverage"
+        for event in client.get(f"/session/{session_id}/telemetry").json()["events"]
+    ), "the signal is still recorded, it just does not change the answer"

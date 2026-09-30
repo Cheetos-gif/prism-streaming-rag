@@ -211,7 +211,6 @@ class Pipeline:
                 chunks=chunks,
                 version=session.ledger.version + 1,
                 use_llm=self.use_llm,
-                out_of_corpus=missing,
             )
             all_claims.extend(claims)
 
@@ -315,7 +314,6 @@ class Pipeline:
                 existing_context=constraint_text,
                 version=session.ledger.version + 1,
                 use_llm=self.use_llm,
-                out_of_corpus=missing,
             )
             new_claims.extend(claims)
 
