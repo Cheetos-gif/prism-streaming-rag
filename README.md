@@ -11,6 +11,7 @@ Late details do not restart the pipeline. Answers are stored as individual claim
 - Hybrid retrieval: BM25 plus dense cosine similarity, fused with reciprocal rank fusion
 - Claim-level refinement: versioned claims in a ledger, superseded claims marked, unrelated claims left untouched
 - Provenance tracking down to corpus chunk and section, e.g. `[doc_07 §2]`
+- Weak evidence is flagged rather than hidden: when the question's subject matter is absent from the corpus, claims keep their citations but are marked `unverified` and listed in the answer's `uncertainty`
 - Append-only JSONL telemetry for every decision, retrieval, claim and version change
 - Evaluation gates G2–G6 over the telemetry log, plus a container reproducibility check
 
@@ -41,6 +42,7 @@ Configuration lives in `.env`, created from `.env.template`:
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Gemini |
 | `CORPUS_PATH` | corpus directory, default `./data/corpus` |
 | `EMBEDDING_MODEL` | sentence-transformers model, default `all-MiniLM-L6-v2` |
+| `EVIDENCE_UNKNOWN_TERM_LIMIT` | out-of-corpus terms that flag an answer as uncertain, default `2` |
 | `HOST`, `PORT` | bind address, default `0.0.0.0:8000` |
 
 `MODEL_PROVIDER=local` runs without any API key and uses rule-based decomposition plus template synthesis. Remote providers are used only when configured.
@@ -136,7 +138,7 @@ Ruff and pytest settings live in `pyproject.toml`, ruff is pinned in `requiremen
 | `GET` | `/api/corpus` | Indexed documents, sections, chunk counts |
 | `GET` | `/api/corpus/{doc_id}` | Markdown text and chunks for one document |
 | `GET` | `/api/chunk/{chunk_id}` | Passage text and section for a chunk |
-| `POST` | `/api/search` | Hybrid retrieval query (`query`, `top_k`) |
+| `POST` | `/api/search` | Hybrid retrieval query (`query`, `top_k`); each hit carries `score` (cosine), `rrf_score` (fusion rank value) and `bm25_score` |
 | `POST` | `/api/eval` | Run gates G2–G6 and return scores |
 
 ## Architecture

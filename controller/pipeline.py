@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from controller.decomposer import decompose
 from controller.stream_simulator import TranscriptChunk
+from ledger.grounding import evidence_is_weak, out_of_corpus_terms
 from ledger.synthesizer import synthesize_claims
 from shared.schemas import (
     AnswerSnapshot,
@@ -192,14 +193,25 @@ class Pipeline:
         result.retrieved_chunks = all_chunks
 
         # Step 4: Synthesize claims from chunks
+        vocabulary = self.retriever.index.vocabulary
         all_claims = []
         for sq in sub_queries:
             chunks = all_chunks.get(sq.sub_intent, [])
+            missing = out_of_corpus_terms(sq.search_query, vocabulary)
+            if missing:
+                session.logger.log(
+                    "evidence_coverage",
+                    timestamp_s=chunk.timestamp_s,
+                    query=sq.search_query,
+                    out_of_corpus_terms=missing,
+                    weak=evidence_is_weak(missing),
+                )
             claims = synthesize_claims(
                 sub_intent=sq.sub_intent,
                 chunks=chunks,
                 version=session.ledger.version + 1,
                 use_llm=self.use_llm,
+                out_of_corpus=missing,
             )
             all_claims.extend(claims)
 
@@ -284,15 +296,26 @@ class Pipeline:
         result.sub_queries = plan.queries_to_rerun
 
         # Step 3: Synthesize replacement claims
+        vocabulary = self.retriever.index.vocabulary
         new_claims = []
         for sq in plan.queries_to_rerun:
             chunks = all_chunks.get(sq.sub_intent, [])
+            missing = out_of_corpus_terms(sq.search_query, vocabulary)
+            if missing:
+                session.logger.log(
+                    "evidence_coverage",
+                    timestamp_s=chunk.timestamp_s,
+                    query=sq.search_query,
+                    out_of_corpus_terms=missing,
+                    weak=evidence_is_weak(missing),
+                )
             claims = synthesize_claims(
                 sub_intent=sq.sub_intent,
                 chunks=chunks,
                 existing_context=constraint_text,
                 version=session.ledger.version + 1,
                 use_llm=self.use_llm,
+                out_of_corpus=missing,
             )
             new_claims.extend(claims)
 
