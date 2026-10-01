@@ -594,7 +594,7 @@ def get_chunk_detail(chunk_id: str):
 @app.post("/api/eval")
 def run_evaluation():
     """Runs automated verification across the 6 scoring gates."""
-    from tests.eval_gates import run_offline_evaluation
+    from evaluation.gates import run_offline_evaluation
 
     results = run_offline_evaluation()
     return {

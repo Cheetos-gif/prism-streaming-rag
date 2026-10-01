@@ -10,8 +10,8 @@ Evaluates the system against the 6 scoring gates defined in the spec:
   G6: Telemetry Coverage   — 100% trace coverage
 
 Usage:
-    python -m tests.eval_gates                  # run all gates
-    python -m tests.eval_gates --gate G2 G4     # run specific gates
+    python -m evaluation.gates                  # run all gates
+    python -m evaluation.gates --gate G2 G4     # run specific gates
 """
 
 from __future__ import annotations

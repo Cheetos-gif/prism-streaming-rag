@@ -89,8 +89,8 @@ The dashboard's Live Studio uses the same scenarios, plus refinement suggestions
 
 ```bash
 python -m pytest tests/ -v                  # unit and API tests
-python -m tests.eval_gates                  # gates, live mode (default)
-python -m tests.eval_gates --mode offline   # gates over logs/mock_run.jsonl
+python -m evaluation.gates                  # gates, live mode (default)
+python -m evaluation.gates --mode offline   # gates over logs/mock_run.jsonl
 python scripts/run_ablations.py             # retrieval and controller ablations
 ```
 
@@ -191,8 +191,9 @@ retrieval/      section-aware markdown chunker, BM25 + dense hybrid retriever
 ledger/         claim ledger with versioning and supersession, grounding checks, synthesizer
 shared/         dataclass schemas, LLM provider wrapper
 telemetry/      JSONL event logger, dashboard SPA
+evaluation/     G2-G6 gate evaluator, used by the CLI and by POST /api/eval
 scripts/        demo replay runner, ablation benchmark suite, mock telemetry generator
-tests/          pytest suite and the G2-G6 gate evaluator
+tests/          pytest suite
 data/corpus/    twelve corpus documents
 docs/           architecture brief, demo walkthrough, ablation results, failure analysis
 .github/        CI workflow: lint, tests, gates, GHCR image push

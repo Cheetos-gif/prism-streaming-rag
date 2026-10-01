@@ -183,10 +183,10 @@ test: check-python $(DEPS_STAMP)
 
 .PHONY: gates gates-offline
 gates: check-python $(DEPS_STAMP)
-	$(VENV_PY) -m tests.eval_gates
+	$(VENV_PY) -m evaluation.gates
 
 gates-offline: check-python $(DEPS_STAMP)
-	$(VENV_PY) -m tests.eval_gates --mode offline
+	$(VENV_PY) -m evaluation.gates --mode offline
 
 .PHONY: check
 check: lint format-check test gates
