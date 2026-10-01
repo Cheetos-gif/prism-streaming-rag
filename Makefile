@@ -51,6 +51,11 @@ DEMO_ARGS      ?=
 MOCK_EVENT_LOG ?= logs/mock_run.jsonl
 PIPFLAGS       ?= --disable-pip-version-check
 
+# Dashboard stylesheet build (only `make css` needs Node)
+NODE          ?= node
+NPM           ?= npm
+DASHBOARD_DIR ?= telemetry/dashboard
+
 VENV_STAMP := $(VENV)/pyvenv.cfg
 DEPS_STAMP := $(VENV)/.prism-deps-installed
 DEV_STAMP  := $(VENV)/.prism-dev-installed
@@ -82,6 +87,8 @@ variables: PYTHON VENV SCENARIO PYTEST_ARGS DEMO_ARGS MOCK_EVENT_LOG
   demo          Replay one scenario, default field_service
   demo-all      Replay all three demo scenarios
   mock-events   Regenerate the mock telemetry log
+  css           Recompile the dashboard stylesheet (needs Node)
+  css-check     Recompile and fail when the committed stylesheet is stale
   env           Copy .env.template to .env when missing
   docker-build  Build the container image
   docker-up     docker compose up --build
@@ -198,6 +205,27 @@ demo-all: demo
 .PHONY: mock-events
 mock-events: check-python
 	@$(PYTHON) scripts/generate_mock_events.py $(MOCK_EVENT_LOG)
+
+# ---------------------------------------------------------------------------
+# Dashboard stylesheet
+# ---------------------------------------------------------------------------
+# styles.css is compiled from tailwind.config.js + tailwind.input.css and is
+# committed, so neither `make run` nor the Docker image needs Node. Rerun this
+# target after touching index.html or the config, and commit the result; CI
+# fails when the committed file is stale. Needs Node only for this target.
+.PHONY: css css-check
+css: check-node
+	$(NPM) --prefix $(DASHBOARD_DIR) install --no-audit --no-fund
+	$(NPM) --prefix $(DASHBOARD_DIR) run build
+
+css-check: check-node
+	$(NPM) --prefix $(DASHBOARD_DIR) install --no-audit --no-fund
+	$(NPM) --prefix $(DASHBOARD_DIR) run build
+	git diff --exit-code -- $(DASHBOARD_DIR)/styles.css
+
+.PHONY: check-node
+check-node:
+	@$(NODE) -e "console.log('node ' + process.version)"
 
 # ---------------------------------------------------------------------------
 # Docker

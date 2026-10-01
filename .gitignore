@@ -20,6 +20,9 @@ data/corpus/*
 logs/*.jsonl
 !logs/mock_run.jsonl
 
+# Node: dependencies for the dashboard stylesheet build, never the artifact itself
+node_modules/
+
 # Editors and OS
 .DS_Store
 Thumbs.db
