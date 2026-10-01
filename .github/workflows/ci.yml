@@ -37,7 +37,7 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu torch
           pip install -r requirements.txt
       - run: python -m pytest tests/ -q
-      - run: python -m tests.eval_gates
+      - run: python -m evaluation.gates
 
   # The dashboard is a static SPA whose stylesheet is compiled ahead of time and
   # committed; the runtime image has no Node. Rebuild it here so a markup change
