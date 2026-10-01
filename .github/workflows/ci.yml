@@ -39,8 +39,22 @@ jobs:
       - run: python -m pytest tests/ -q
       - run: python -m tests.eval_gates
 
+  # The dashboard is a static SPA whose stylesheet is compiled ahead of time and
+  # committed; the runtime image has no Node. Rebuild it here so a markup change
+  # that was never recompiled cannot reach the cluster as an unstyled page.
+  dashboard-css:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: telemetry/dashboard/package-lock.json
+      - run: make css-check
+
   image:
-    needs: [lint, test]
+    needs: [lint, test, dashboard-css]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

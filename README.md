@@ -34,16 +34,16 @@ make help       # all targets
 
 Configuration lives in `.env`, created from `.env.template`:
 
-| Variable | Purpose |
-| :--- | :--- |
-| `MODEL_PROVIDER` | `local` (default), `groq`, `ollama`, `openrouter`, `gemini` |
-| `GROQ_API_KEY`, `GROQ_MODEL` | Groq |
-| `OLLAMA_MODEL`, `OLLAMA_BASE_URL` | Ollama |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | Gemini |
-| `CORPUS_PATH` | corpus directory, default `./data/corpus` |
-| `EMBEDDING_MODEL` | sentence-transformers model, default `all-MiniLM-L6-v2` |
-| `EVIDENCE_UNKNOWN_TERM_LIMIT` | out-of-corpus terms that flag an answer as uncertain, default `2` |
-| `HOST`, `PORT` | bind address, default `0.0.0.0:8000` |
+| Variable                          | Purpose                                                           |
+| :-------------------------------- | :---------------------------------------------------------------- |
+| `MODEL_PROVIDER`                  | `local` (default), `groq`, `ollama`, `openrouter`, `gemini`       |
+| `GROQ_API_KEY`, `GROQ_MODEL`      | Groq                                                              |
+| `OLLAMA_MODEL`, `OLLAMA_BASE_URL` | Ollama                                                            |
+| `GEMINI_API_KEY`, `GEMINI_MODEL`  | Gemini                                                            |
+| `CORPUS_PATH`                     | corpus directory, default `./data/corpus`                         |
+| `EMBEDDING_MODEL`                 | sentence-transformers model, default `all-MiniLM-L6-v2`           |
+| `EVIDENCE_UNKNOWN_TERM_LIMIT`     | out-of-corpus terms that flag an answer as uncertain, default `2` |
+| `HOST`, `PORT`                    | bind address, default `0.0.0.0:8000`                              |
 
 `MODEL_PROVIDER=local` runs without any API key and uses rule-based decomposition plus template synthesis. Remote providers are used only when configured.
 
@@ -67,6 +67,8 @@ docker compose down
 CI builds and pushes `ghcr.io/cheetos-gif/prism-streaming-rag` on every push to `main`; tags are the branch name, `sha-<short>` and `latest`. The image installs CPU-only torch, so no CUDA libraries are included. The cluster deployment in `upayanmazumder/cluster` tracks that `latest` tag and serves it at https://prism.upayan.dev.
 
 Make equivalents: `make run`, `make docker-up`, `make docker-down`, `make docker-logs`.
+
+The dashboard stylesheet is precompiled and committed, so the container needs no Node. After editing `telemetry/dashboard/index.html`, run `make css` (needs Node) and commit `styles.css`; CI fails if the two drift apart. See `telemetry/dashboard/README.md`.
 
 ## Demo
 
@@ -94,14 +96,14 @@ python scripts/run_ablations.py             # retrieval and controller ablations
 
 `make test` and `make gates` wrap the first two. The gate runner exits non-zero if a gate fails.
 
-| Gate | Check | Threshold |
-| :--- | :--- | :--- |
-| G1 | Container reproducibility — verified by `docker compose up --build` and `GET /health` | manual |
-| G2 | Retrieval starts before `utterance_end` | 0.80 |
-| G3 | Compound queries decomposed into 2+ sub-intents | 0.70 |
-| G4 | Claims carry valid citations | 0.85 |
-| G5 | Late constraints produce a version transition without re-running unrelated claims | 1.00 |
-| G6 | Telemetry events have complete fields | 1.00 |
+| Gate | Check                                                                                 | Threshold |
+| :--- | :------------------------------------------------------------------------------------ | :-------- |
+| G1   | Container reproducibility — verified by `docker compose up --build` and `GET /health` | manual    |
+| G2   | Retrieval starts before `utterance_end`                                               | 0.80      |
+| G3   | Compound queries decomposed into 2+ sub-intents                                       | 0.70      |
+| G4   | Claims carry valid citations                                                          | 0.85      |
+| G5   | Late constraints produce a version transition without re-running unrelated claims     | 1.00      |
+| G6   | Telemetry events have complete fields                                                 | 1.00      |
 
 Live mode streams four scenarios through the real pipeline, so it needs the embedding model. Offline mode scores the committed mock telemetry in `logs/mock_run.jsonl` (regenerated on demand by `scripts/generate_mock_events.py`) and is what the dashboard's `/api/eval` button runs.
 
@@ -121,25 +123,25 @@ Ruff and pytest settings live in `pyproject.toml`, ruff is pinned in `requiremen
 
 `/api`-prefixed aliases exist for the session, health, stream and chunk routes. Request models are in `controller/main.py`.
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/` | Redirects to `/dashboard/` |
-| `GET` | `/health` | Status, version, provider, indexed chunk count |
-| `GET` | `/dashboard` | Dashboard UI |
-| `POST` | `/session` | Create a session |
-| `GET` | `/session/{id}` | Session state: claims, versions, decisions |
-| `POST` | `/session/{id}/stream` | Ingest one transcript chunk (`timestamp_s`, `text`, `is_final`); alias `/chunk` |
-| `POST` | `/session/{id}/utterance_end` | End the utterance and synthesize the answer |
-| `POST` | `/session/{id}/refine` | Apply a late constraint (`text`), bump answer version |
-| `POST` | `/session/{id}/suppress` | Presentation-only restructure request (`prompt`), no retrieval |
-| `GET` | `/session/{id}/telemetry` | JSONL event log for the session |
-| `POST` | `/replay` | Replay a scripted scenario, return the full trace |
-| `GET` | `/api/scenarios` | Preset scenarios and refinement suggestions |
-| `GET` | `/api/corpus` | Indexed documents, sections, chunk counts |
-| `GET` | `/api/corpus/{doc_id}` | Markdown text and chunks for one document |
-| `GET` | `/api/chunk/{chunk_id}` | Passage text and section for a chunk |
-| `POST` | `/api/search` | Hybrid retrieval query (`query`, `top_k`); each hit carries `score` (cosine), `rrf_score` (fusion rank value) and `bm25_score` |
-| `POST` | `/api/eval` | Run gates G2–G6 and return scores |
+| Method | Endpoint                      | Description                                                                                                                    |
+| :----- | :---------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/`                           | Redirects to `/dashboard/`                                                                                                     |
+| `GET`  | `/health`                     | Status, version, provider, indexed chunk count                                                                                 |
+| `GET`  | `/dashboard`                  | Dashboard UI                                                                                                                   |
+| `POST` | `/session`                    | Create a session                                                                                                               |
+| `GET`  | `/session/{id}`               | Session state: claims, versions, decisions                                                                                     |
+| `POST` | `/session/{id}/stream`        | Ingest one transcript chunk (`timestamp_s`, `text`, `is_final`); alias `/chunk`                                                |
+| `POST` | `/session/{id}/utterance_end` | End the utterance and synthesize the answer                                                                                    |
+| `POST` | `/session/{id}/refine`        | Apply a late constraint (`text`), bump answer version                                                                          |
+| `POST` | `/session/{id}/suppress`      | Presentation-only restructure request (`prompt`), no retrieval                                                                 |
+| `GET`  | `/session/{id}/telemetry`     | JSONL event log for the session                                                                                                |
+| `POST` | `/replay`                     | Replay a scripted scenario, return the full trace                                                                              |
+| `GET`  | `/api/scenarios`              | Preset scenarios and refinement suggestions                                                                                    |
+| `GET`  | `/api/corpus`                 | Indexed documents, sections, chunk counts                                                                                      |
+| `GET`  | `/api/corpus/{doc_id}`        | Markdown text and chunks for one document                                                                                      |
+| `GET`  | `/api/chunk/{chunk_id}`       | Passage text and section for a chunk                                                                                           |
+| `POST` | `/api/search`                 | Hybrid retrieval query (`query`, `top_k`); each hit carries `score` (cosine), `rrf_score` (fusion rank value) and `bm25_score` |
+| `POST` | `/api/eval`                   | Run gates G2–G6 and return scores                                                                                              |
 
 ## Architecture
 
@@ -166,19 +168,19 @@ TelemetryLogger  (append-only JSONL per session)
 
 `data/corpus/` holds twelve markdown documents, chunked by section. Retrieval is restricted to these files; the synthesizer only emits claims backed by retrieved chunks.
 
-| Doc | Topic |
-| :--- | :--- |
-| `doc_01` | Model 7 compressor specifications |
-| `doc_02` | Troubleshooting guide |
-| `doc_03` | Maintenance schedules |
-| `doc_04` | Safety protocols |
-| `doc_05` | Spare parts catalog |
-| `doc_06` | Warranty and service |
-| `doc_07` | Emergency procedures |
-| `doc_08` | Venue booking (Pune) |
-| `doc_09` | Catering options |
-| `doc_10` | Cancellation policy |
-| `doc_11` | Travel reimbursement, domestic |
+| Doc      | Topic                               |
+| :------- | :---------------------------------- |
+| `doc_01` | Model 7 compressor specifications   |
+| `doc_02` | Troubleshooting guide               |
+| `doc_03` | Maintenance schedules               |
+| `doc_04` | Safety protocols                    |
+| `doc_05` | Spare parts catalog                 |
+| `doc_06` | Warranty and service                |
+| `doc_07` | Emergency procedures                |
+| `doc_08` | Venue booking (Pune)                |
+| `doc_09` | Catering options                    |
+| `doc_10` | Cancellation policy                 |
+| `doc_11` | Travel reimbursement, domestic      |
 | `doc_12` | Travel reimbursement, international |
 
 ## Project Structure

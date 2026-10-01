@@ -1,0 +1,14 @@
+{
+  "name": "prism-dashboard-css",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Build-only tooling that compiles telemetry/dashboard/styles.css. The dashboard itself is static HTML; nothing here runs at request time.",
+  "scripts": {
+    "build": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o styles.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/container-queries": "0.1.1",
+    "@tailwindcss/forms": "0.5.10",
+    "tailwindcss": "3.4.17"
+  }
+}
